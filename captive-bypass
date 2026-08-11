@@ -1,0 +1,336 @@
+#!/usr/bin/env bash
+# captive-bypass - auto-login for Sophos/Cyberoam captive portals.
+# See README.md in this repo for install/usage/design notes.
+
+set -euo pipefail
+
+SELF="$(readlink -f "$0")"
+TOOL_USER="${USER:-$(id -un)}"
+TOOL_HOME="${HOME:-$(getent passwd "$TOOL_USER" | cut -d: -f6)}"
+
+if [ -n "${CAPTIVE_BYPASS_CONFIG:-}" ]; then
+	CONFIG_DIR="$CAPTIVE_BYPASS_CONFIG"
+else
+	CONFIG_DIR="$TOOL_HOME/.config/captive-bypass"
+fi
+
+PORTAL="${CAPTIVE_BYPASS_PORTAL:-https://rr.pes.edu:8090}"
+CREDS_FILE="$CONFIG_DIR/creds"
+NETWORK_FILE="$CONFIG_DIR/network.conf"
+STATE_FILE="$CONFIG_DIR/state"
+DISABLED_FILE="$CONFIG_DIR/disabled"
+DISPATCHER="/etc/NetworkManager/dispatcher.d/90-captive-bypass"
+RETRY_DELAY="${CAPTIVE_BYPASS_RETRY_DELAY:-5}"
+LOGOUT_LOGIN_GAP="${CAPTIVE_BYPASS_LOGOUT_LOGIN_GAP:-0.5}"
+MAX_RETRIES=3
+LOGIN_COOLDOWN=60
+LOGOUT_COOLDOWN=10
+
+SRN=""
+PASS=""
+MSG=""
+TRIGGER_SSID=""
+
+log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$CONFIG_DIR/log"; }
+
+die() { echo "error: $*" >&2; exit 1; }
+
+ensure_config() {
+	mkdir -p "$CONFIG_DIR"
+	chmod 700 "$CONFIG_DIR"
+}
+
+is_disabled() {
+	[ -f "$DISABLED_FILE" ]
+}
+
+set_state() {
+	printf '%s %s\n' "$1" "$(date +%s)" >"$STATE_FILE"
+	chmod 600 "$STATE_FILE"
+}
+
+state_is_recent() {
+	local act last now
+	[ -f "$STATE_FILE" ] || return 1
+	act="$(awk '{print $1}' "$STATE_FILE" 2>/dev/null)"
+	last="$(awk '{print $2}' "$STATE_FILE" 2>/dev/null)"
+	[ "$act" = "$1" ] || return 1
+	case "$last" in ''|*[!0-9]*) return 1 ;; esac
+	now="$(date +%s)"
+	[ $(( now - last )) -lt "$2" ]
+}
+
+get_active_ssid() {
+	command -v nmcli >/dev/null 2>&1 || return 1
+	nmcli -t -f active,ssid dev wifi 2>/dev/null | awk -F: '$1=="yes" { s=$0; sub(/^yes:/, "", s); print s; exit }'
+}
+
+save_creds() {
+	ensure_config
+	local srn pass1 pass2
+	printf 'SRN (portal username): '
+	read -r srn || die "unable to read username"
+	while :; do
+		printf 'Password: '
+		read -rs pass1 || die "unable to read password"
+		printf '\nConfirm password: '
+		read -rs pass2 || die "unable to read password"
+		printf '\n'
+		[ "$pass1" = "$pass2" ] && break
+		echo "Passwords do not match - try again."
+	done
+	[ -n "$srn" ] || die "username cannot be empty"
+	printf '%s\n%s\n' "$srn" "$pass1" >"$CREDS_FILE"
+	chmod 600 "$CREDS_FILE"
+	log "credentials saved"
+	echo "Saved credentials to $CREDS_FILE (chmod 600)."
+}
+
+capture_network() {
+	ensure_config
+	local ssid ans
+	ssid="$(get_active_ssid || true)"
+	[ -n "$ssid" ] || die "no active WiFi network detected - run this while connected to your WiFi network"
+	printf "You're currently connected to '%s' - save this as the trigger network? [y/N] " "$ssid"
+	read -r -t 20 ans || { echo; echo "No confirmation received - not saved."; return 1; }
+	case "$ans" in
+		y|Y|yes|YES)
+			printf '%s\n' "$ssid" >"$NETWORK_FILE"
+			chmod 600 "$NETWORK_FILE"
+			log "trigger network set to '$ssid'"
+			echo "Saved trigger network: '$ssid'"
+			return 0 ;;
+		*) echo "Not saved."; return 1 ;;
+	esac
+}
+
+load_creds() {
+	[ -f "$CREDS_FILE" ] || return 1
+	SRN="$(sed -n '1p' "$CREDS_FILE")"
+	PASS="$(sed -n '2p' "$CREDS_FILE")"
+}
+
+load_network() {
+	[ -f "$NETWORK_FILE" ] || return 1
+	TRIGGER_SSID="$(cat "$NETWORK_FILE")"
+}
+
+on_trigger_network() {
+	[ -n "$TRIGGER_SSID" ] || return 1
+	[ "$(get_active_ssid || true)" = "$TRIGGER_SSID" ]
+}
+
+attempt_login() {
+	local a resp
+	a="$(date +%s%3N)"
+	resp="$(curl -sfk --max-time 20 -A 'captive-bypass/1.0' \
+		-X POST "$PORTAL/login.xml" \
+		-H 'Content-Type: application/x-www-form-urlencoded' \
+		--data-urlencode 'mode=191' \
+		--data-urlencode "username=$SRN" \
+		--data-urlencode "password=$PASS" \
+		--data-urlencode "a=$a" \
+		--data-urlencode 'producttype=0' 2>/dev/null || true)"
+	if printf '%s' "$resp" | grep -q '<status><!\[CDATA\[LIVE\]\]>'; then
+		MSG="authenticated"
+		return 0
+	fi
+	MSG="$(printf '%s' "$resp" | sed -n 's/.*<message><!\[CDATA\[\([^]]*\)\]\]><\/message>.*/\1/p')"
+	[ -n "$MSG" ] || MSG="portal unreachable or unexpected response"
+	return 1
+}
+
+send_logout_request() {
+	local a
+	a="$(date +%s%3N)"
+	curl -sfk --max-time 10 -A 'captive-bypass/1.0' \
+		-X POST "$PORTAL/logout.xml" \
+		-H 'Content-Type: application/x-www-form-urlencoded' \
+		--data-urlencode 'mode=193' \
+		--data-urlencode "username=$SRN" \
+		--data-urlencode "a=$a" \
+		--data-urlencode 'producttype=0' >/dev/null 2>&1 || true
+}
+
+do_logout() {
+	ensure_config
+	command -v nmcli >/dev/null 2>&1 || die "nmcli not found - NetworkManager is required"
+	if is_disabled; then
+		echo "Disabled - not logging out."
+		return 0
+	fi
+	load_creds || die "no credentials found - run 'captive-bypass' once interactively, or 'captive-bypass --update-creds'"
+	if state_is_recent logout "$LOGOUT_COOLDOWN"; then
+		echo "Already logged out recently - skipping."
+		return 0
+	fi
+	send_logout_request
+	set_state logout
+	log "logout sent"
+	echo "Logout request sent."
+}
+
+do_login() {
+	ensure_config
+	command -v nmcli >/dev/null 2>&1 || die "nmcli not found - NetworkManager is required"
+	if is_disabled; then
+		echo "Disabled - not logging in."
+		return 0
+	fi
+	load_creds || die "no credentials found - run 'captive-bypass' once interactively, or 'captive-bypass --update-creds'"
+	load_network || die "no trigger network configured - run 'captive-bypass --set-network'"
+	if ! on_trigger_network; then
+		local cur
+		cur="$(get_active_ssid || true)"
+		echo "Not on trigger network '$TRIGGER_SSID' (currently connected to '${cur:-none}') - skipping login."
+		return 0
+	fi
+	if state_is_recent login "$LOGIN_COOLDOWN"; then
+		echo "Already logged in recently - skipping."
+		return 0
+	fi
+	echo "On trigger network '$TRIGGER_SSID' - attempting captive portal login..."
+	if ! state_is_recent logout "$LOGOUT_COOLDOWN"; then
+		echo "Sending pre-login logout to clear any stale session..."
+		send_logout_request
+		set_state logout
+		sleep "$LOGOUT_LOGIN_GAP"
+	fi
+	local attempt
+	for attempt in $(seq 1 "$MAX_RETRIES"); do
+		if attempt_login; then
+			set_state login
+			log "login OK (attempt $attempt)"
+			echo "Captive portal login successful."
+			return 0
+		fi
+		log "login attempt $attempt/$MAX_RETRIES failed: $MSG"
+		echo "Attempt $attempt/$MAX_RETRIES failed: $MSG"
+		[ "$attempt" -lt "$MAX_RETRIES" ] && sleep "$RETRY_DELAY"
+	done
+	log "login failed after $MAX_RETRIES attempts"
+	echo "Login failed ${MAX_RETRIES}x - check credentials with 'captive-bypass --update-creds', or the portal may be down" >&2
+	return 1
+}
+
+install_dispatcher() {
+	command -v sudo >/dev/null 2>&1 || die "sudo is required to install the dispatcher"
+	ensure_config
+	local tmp
+	tmp="$(mktemp)"
+	cat >"$tmp" <<EOF
+#!/bin/bash
+mkdir -p "$CONFIG_DIR" 2>/dev/null || true
+run_tool() {
+  if [ "\$(id -u)" -eq 0 ]; then
+    if command -v runuser >/dev/null 2>&1; then
+      runuser -u "$TOOL_USER" -- env HOME="$TOOL_HOME" "$SELF" "\$1"
+    else
+      su -s /bin/bash "$TOOL_USER" -c "HOME='$TOOL_HOME' '$SELF' \$1"
+    fi
+  else
+    HOME="$TOOL_HOME" "$SELF" "\$1"
+  fi
+}
+case "\$2" in
+  up)
+    ( sleep 3
+      run_tool login
+    ) >>"$CONFIG_DIR/log" 2>&1 &
+    ;;
+  pre-down)
+    ( run_tool logout ) >>"$CONFIG_DIR/log" 2>&1 &
+    ;;
+esac
+exit 0
+EOF
+	chmod 700 "$tmp"
+	sudo install -o root -g root -m 0755 "$tmp" "$DISPATCHER"
+	rm -f "$tmp"
+	log "dispatcher installed at $DISPATCHER"
+	echo "Installed dispatcher: $DISPATCHER"
+}
+
+uninstall() {
+	local ans
+	printf 'Remove %s and delete %s? [y/N] ' "$DISPATCHER" "$CONFIG_DIR"
+	read -r ans || { echo; echo "Aborted."; return 1; }
+	case "$ans" in
+		y|Y|yes|YES)
+			if [ -e "$DISPATCHER" ]; then
+				sudo rm -f "$DISPATCHER" || die "failed to remove dispatcher"
+				echo "Removed $DISPATCHER"
+			else
+				echo "Dispatcher not present; nothing to remove."
+			fi
+			rm -rf "$CONFIG_DIR"
+			echo "Deleted $CONFIG_DIR"
+			;;
+		*) echo "Aborted."; return 1 ;;
+	esac
+}
+
+usage() {
+	cat <<'EOF'
+captive-bypass - auto-login for Sophos/Cyberoam captive portals
+
+Usage:
+  captive-bypass                 First-run setup (creds + trigger SSID), then log in
+  captive-bypass login           Force a login attempt now (sends logout first)
+  captive-bypass logout          Send a logout request to clear the session
+  captive-bypass --enable        Resume auto login/logout
+  captive-bypass --disable       Pause auto login/logout (e.g. while using a friend's login)
+  captive-bypass --update-creds  Re-enter SRN/password
+  captive-bypass --set-network   Re-capture the trigger SSID
+  captive-bypass --install       Install the NetworkManager dispatcher (needs sudo)
+  captive-bypass --uninstall     Remove dispatcher + delete config (needs sudo)
+  captive-bypass --help          Show this help
+
+Environment overrides (advanced):
+  CAPTIVE_BYPASS_PORTAL            portal base URL (default https://rr.pes.edu:8090)
+  CAPTIVE_BYPASS_CONFIG            config dir (default ~/.config/captive-bypass)
+  CAPTIVE_BYPASS_RETRY_DELAY       seconds between retries (default 5)
+  CAPTIVE_BYPASS_LOGOUT_LOGIN_GAP  seconds between pre-login logout and login (default 0.5)
+EOF
+}
+
+main() {
+	local fresh_setup=0 ans
+	case "${1:-}" in
+		login) do_login ;;
+		logout) do_logout ;;
+		--enable) ensure_config; rm -f "$DISABLED_FILE"; log "enabled"; echo "Enabled - auto login/logout active." ;;
+		--disable) ensure_config; touch "$DISABLED_FILE"; chmod 600 "$DISABLED_FILE"; log "disabled"; echo "Paused - auto login/logout disabled ('captive-bypass --enable' to resume)." ;;
+		--update-creds) save_creds ;;
+		--set-network) capture_network ;;
+		--install) install_dispatcher ;;
+		--uninstall) uninstall ;;
+		-h|--help) usage; return 0 ;;
+		*)
+			ensure_config
+			if [ ! -f "$CREDS_FILE" ]; then
+				save_creds
+				fresh_setup=1
+			fi
+			if [ ! -f "$NETWORK_FILE" ]; then
+				if capture_network; then
+					fresh_setup=1
+				else
+					echo "Run 'captive-bypass --set-network' when connected to your WiFi network."
+					return 1
+				fi
+			fi
+			if [ "$fresh_setup" = 1 ] && [ ! -e "$DISPATCHER" ]; then
+				printf 'Install auto-login dispatcher at %s (needs sudo)? [y/N] ' "$DISPATCHER"
+				read -r ans || ans=""
+				case "$ans" in
+					y|Y|yes|YES) install_dispatcher ;;
+					*) echo "Skipping dispatcher install. Run 'captive-bypass --install' later." ;;
+				esac
+			fi
+			do_login
+			;;
+	esac
+}
+
+main "$@"

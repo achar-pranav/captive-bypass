@@ -65,6 +65,11 @@ get_active_ssid() {
 	nmcli -t -f active,ssid dev wifi 2>/dev/null | awk -F: '$1=="yes" { s=$0; sub(/^yes:/, "", s); print s; exit }'
 }
 
+get_active_bssid() {
+	command -v nmcli >/dev/null 2>&1 || return 1
+	nmcli -t -f active,bssid dev wifi 2>/dev/null | awk -F: '$1=="yes" { s=$0; sub(/^yes:/, "", s); print s; exit }'
+}
+
 save_creds() {
 	ensure_config
 	local srn pass1 pass2

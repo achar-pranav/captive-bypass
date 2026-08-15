@@ -1,8 +1,11 @@
 # AGENTS.md — captive-bypass
 
 ## What this is
-A bash tool that auto-logs into the PESU Sophos/Cyberoam captive portal
+A tool that auto-logs into the PESU Sophos/Cyberoam captive portal
 (rr.pes.edu:8090) using stored SRN/password, triggered on campus WiFi connect.
+Current backend: Linux + NetworkManager (bash). Design is backend-tiered to
+cover other WiFi managers and OSes (student laptops), so treat OS/manager
+specifics as swappable backends, not permanent facts.
 
 ## The one non-negotiable fact (roaming)
 The portal keys a session to MAC + network location (AP/switch). When the user
@@ -18,8 +21,8 @@ session timeout (~3h, unmeasured). MAC randomization per connect is the only
 100% reliable sidestep, but carries policy risk (looks like device churn to IT).
 
 ## Files
-- captive-bypass     the whole tool (single bash script)
-- docs/DESIGN.md     design notes + ELI5 glossary (human-facing, fetched on demand)
+- captive-bypass     the whole tool (single bash script, current backend)
+- docs/DESIGN.md     design notes + ELI5 glossary; read ONLY when an issue references it
 - README.md          install/usage/security
 
 ## Config (created at runtime)
@@ -28,6 +31,8 @@ session timeout (~3h, unmeasured). MAC randomization per connect is the only
 ## Workflow contract (how we work)
 - One GitHub issue per task; the issue body is the only briefing needed.
 - Every session starts with: this file + `gh issue view <N>` for the target.
+  ALL context comes from these two; nothing else is fetched unless an issue
+  says so (e.g. "see docs/DESIGN.md §roaming").
 - Patch only code named in the issue's Files section; reference functions, not
   line numbers. Keep the change byte-sized.
 - Verify against the issue's "Done when" checklist. No test suite; manual verify.
@@ -38,4 +43,6 @@ session timeout (~3h, unmeasured). MAC randomization per connect is the only
   explanations; never dump whole files into chat.
 
 ## Tooling
-- gh (auth achar-pranav), nmcli (NetworkManager), curl, bash. Linux-only.
+- gh, curl, bash; current WiFi backend is NetworkManager (nmcli).
+- Tiered backends planned: iwd/wpa_supplicant on Linux, then Windows/macOS.
+- No test suite; verification is manual/empirical.

@@ -2,7 +2,7 @@
 
 Auto-login for the PESU **Sophos/Cyberoam** captive portal (`rr.pes.edu:8090`), so you never have to open a browser on the ELEMENT BLOCK WiFi.
 
-Written in **bash** on purpose: the login is a single stateless POST, and the response is trivially parsed — Python would add a runtime dependency without buying anything cleaner. The tool needs only `curl`, `nmcli` (NetworkManager), and `sudo`, all near-universal on Linux.
+The current backend is **bash + curl + nmcli** (NetworkManager), which keeps the login (a single stateless POST, trivially parsed) dependency-light. The design is **backend-tiered**: WiFi managers (iwd, wpa_supplicant) and other OSes (Windows, macOS) are planned as additional backends rather than forks — the portal logic is transport-agnostic.
 
 **For agents/AI sessions:** read `AGENTS.md` first (auto-loaded); design context and the ELI5 glossary live in `docs/DESIGN.md`; tasks are tracked as GitHub issues.
 
@@ -26,10 +26,10 @@ mode=191&username=<SRN>&password=<PASSWORD>&a=<epoch-ms>&producttype=0
 
 ## Requirements
 
-- Linux with **NetworkManager** (`nmcli`), `curl`, `sudo`
+- Linux with **NetworkManager** (`nmcli`), `curl`, `sudo` — the current backend
 - bash
 
-`iwd` / `wpa_supplicant` are **not** supported yet — see [Known limitations](#known-limitations).
+`iwd` / `wpa_supplicant` (and later Windows/macOS) are planned as additional backends — see [Known limitations](#known-limitations).
 
 ## Install & first run
 
@@ -96,7 +96,7 @@ If you genuinely want encryption at rest, the honest mechanism is an **OS keyrin
 
 ## Known limitations
 
-- **NetworkManager only.** SSID detection relies on `nmcli`; `iwd` and `wpa_supplicant` are not handled. Adding them means teaching `get_active_ssid()` to speak their CLIs (`iwctl`, `wpa_cli`) — the rest of the tool is transport-agnostic.
+- **Current backend is NetworkManager.** SSID detection uses `nmcli`; iwd / wpa_supplicant are planned as additional backends. Adding them means adding a backend for `get_active_ssid()` (and BSSID/RSSI detection) — the portal logic is transport-agnostic.
 - The dispatcher only fires on interface `up`. If the portal drops you mid-session, nothing re-logs you in (see keep-alive below).
 
 ## Future work

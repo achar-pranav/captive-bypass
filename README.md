@@ -4,6 +4,8 @@ Auto-login for the PESU **Sophos/Cyberoam** captive portal (`rr.pes.edu:8090`), 
 
 Written in **bash** on purpose: the login is a single stateless POST, and the response is trivially parsed — Python would add a runtime dependency without buying anything cleaner. The tool needs only `curl`, `nmcli` (NetworkManager), and `sudo`, all near-universal on Linux.
 
+**For agents/AI sessions:** read `AGENTS.md` first (auto-loaded); design context and the ELI5 glossary live in `docs/DESIGN.md`; tasks are tracked as GitHub issues.
+
 ## How the portal login works
 
 Reverse-engineered from the portal's own `httpclient.js`:

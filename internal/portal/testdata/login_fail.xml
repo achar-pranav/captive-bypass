@@ -1,0 +1,4 @@
+<response>
+<status><![CDATA[LOGIN]]></status>
+<message><![CDATA[Invalid username or password]]></message>
+</response>

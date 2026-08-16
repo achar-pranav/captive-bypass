@@ -62,6 +62,17 @@ Alternatives considered and rejected:
   more work than a simple control panel needs. Rejected: Fyne is simpler.
 - **Electron**: way too heavy and not Go. Rejected.
 
+## Windows wifi backend decision
+- **State:** `netsh wlan show interfaces` parsing, mirroring nmcli. Native
+  `wlanapi` state calls rejected: more code (buffers/GUIDs/pointers) for no
+  v1 gain.
+- **Signal:** log netsh percentage for now. Plan: standardize to **dBm across
+  all OSes** to match tuning from test data. Windows dBm extraction unsolved —
+  may need an empirical conversion scale after real testing.
+- **Events:** `WlanRegisterNotification` (pure Go syscall, no CGO). No poller
+  and no poller fallback — revisit only if real-hardware testing proves the
+  listener broken. Goal: minimal LOC.
+
 ## ELI5 glossary
 | Term | Plain meaning |
 |---|---|

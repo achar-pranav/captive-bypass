@@ -3,9 +3,11 @@
 ## What this is
 A tool that auto-logs into the PESU Sophos/Cyberoam captive portal
 (rr.pes.edu:8090) using stored SRN/password, triggered on campus WiFi connect.
-Current backend: Linux + NetworkManager (bash). Design is backend-tiered to
-cover other WiFi managers and OSes (student laptops), so treat OS/manager
-specifics as swappable backends, not permanent facts.
+Current tool: **Go binary**. Linux/NetworkManager (nmcli) is the first wifi
+backend; the old bash script is archived in `attic/` and used only as a
+protocol reference. Design is backend-tiered to cover other WiFi managers and
+OSes (student laptops), so treat OS/manager specifics as swappable backends,
+not permanent facts.
 
 ## Platform priority
 Windows and macOS are first-class until v1 is out — not afterthoughts. Linux is
@@ -27,8 +29,10 @@ session timeout (~3h, unmeasured). MAC randomization per connect is the only
 100% reliable sidestep, but carries policy risk (looks like device churn to IT).
 
 ## Files
-- captive-bypass     the whole tool (single bash script, current backend)
+- attic/captive-bypass  archived bash tool (reference only)
+- cmd/, internal/, backends/  the Go tool (current)
 - docs/DESIGN.md     design notes + ELI5 glossary; read ONLY when an issue references it
+- docs/GO-REWRITE.md historical rewrite RFC (superseded by GitHub issues)
 - README.md          install/usage/security
 
 ## Config (created at runtime)
@@ -52,6 +56,6 @@ session timeout (~3h, unmeasured). MAC randomization per connect is the only
   was NOT chosen, before moving on.
 
 ## Tooling
-- gh, curl, bash; current WiFi backend is NetworkManager (nmcli).
+- gh, go; current wifi backend is NetworkManager (nmcli).
 - Tiered backends planned: iwd/wpa_supplicant on Linux, then Windows/macOS.
 - No test suite; verification is manual/empirical.

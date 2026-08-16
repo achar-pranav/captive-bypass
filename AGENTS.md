@@ -54,6 +54,9 @@ session timeout (~3h, unmeasured). MAC randomization per connect is the only
 - Whenever a framework/approach is picked (GUI, backend, storage, etc.), add an
   entry to docs/DESIGN.md listing the alternatives we looked at and why each
   was NOT chosen, before moving on.
+- Walk the dev through EVERY step and decision, down to the smallest divisible
+  decision, before writing code. The dev decides what and why; the model only
+  handles syntax. Never make a design/behavior decision on the dev's behalf.
 
 ## Tooling
 - gh, curl, bash; current WiFi backend is NetworkManager (nmcli).

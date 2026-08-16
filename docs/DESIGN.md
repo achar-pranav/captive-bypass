@@ -44,6 +44,24 @@ Randomize the MAC per connect => every attach is a "fresh device", so a stale
 binding can never bite. Costs: re-auth every connect; looks like device churn
 to IT (policy risk). Kept as a documented escape hatch only.
 
+## GUI framework choice
+Chosen: **Fyne** — pure Go native window, no browser/webview, RAM footprint
+~5-15 MB (budget: <=20 MB). Needs CGO (OpenGL) to draw, so each OS builds its
+own copy (Linux on Linux, Windows on Windows) — the accepted tradeoff for a
+small footprint.
+
+Alternatives considered and rejected:
+- **Wails** (Go backend + native webview, HTML/CSS/JS frontend): runtime
+  footprint of a full browser engine (~100-300 MB RAM), CGO + per-OS webview
+  deps (WebKitGTK, WebView2), complicates cross-compiling. Rejected: footprint
+  too big for a "mini helper app".
+- **Embedded local web UI** (Go serves HTML/CSS/JS on localhost, browser tab):
+  pure Go, no CGO, cross-compiles all targets from one machine. Rejected: the
+  user wants a native mini-app, not a browser tab.
+- **Gio** (pure Go immediate-mode UI): small footprint, but lower-level and
+  more work than a simple control panel needs. Rejected: Fyne is simpler.
+- **Electron**: way too heavy and not Go. Rejected.
+
 ## ELI5 glossary
 | Term | Plain meaning |
 |---|---|

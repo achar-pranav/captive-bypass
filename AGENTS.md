@@ -51,9 +51,16 @@ session timeout (~3h, unmeasured). MAC randomization per connect is the only
   session resumes cleanly.
 - The user is not a strong dev: answer architecture questions in short
   explanations; never dump whole files into chat.
+- When the user asks to ELI5 any concept, coding practice, or framework,
+  assume they are a non-coder: explain in plain English with practical
+  "what does this mean for us" framing — never explain like a developer
+  would to another developer.
 - Whenever a framework/approach is picked (GUI, backend, storage, etc.), add an
   entry to docs/DESIGN.md listing the alternatives we looked at and why each
   was NOT chosen, before moving on.
+- Walk the dev through EVERY step and decision, down to the smallest divisible
+  decision, before writing code. The dev decides what and why; the model only
+  handles syntax. Never make a design/behavior decision on the dev's behalf.
 
 ## Tooling
 - gh, go; current wifi backend is NetworkManager (nmcli).

@@ -20,7 +20,7 @@ reconnect to the old AP, send logout, then return.)
 
 ## Session timeout
 Worst case after a missed logout: the portal keeps the session until its idle
-timeout. Rough estimate ~3 hours; NOT measured. This defines the worst-case
+timeout. Rough estimate ~30 Minutes; NOT measured. This defines the worst-case
 lockout window for a hard radio drop.
 
 ## The tiered mitigation (why the roam fix is "best effort")
@@ -29,7 +29,7 @@ lockout window for a hard radio drop.
 2. NM dispatcher pre-down logout — catches graceful disassociates (coverage
    edge) where the client initiates the drop.
 3. Hard fade (elevator/corner) — logout never ships; accept lockout until the
-   ~3h session timeout. This is NOT recoverable client-side. Do not over-promise.
+   ~30min session timeout. This is NOT recoverable client-side. Do not over-promise.
 
 ## Validation: empirical only
 No lab. The user refuses to press "disconnect" in real life — the tool must be

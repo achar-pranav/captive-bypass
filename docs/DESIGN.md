@@ -37,6 +37,11 @@ signal trend + BSSID drift and fire logout BEFORE the drop. **Known risk:
 rubberbanding** — false positives firing logout too eagerly. Decision:
 experimental only, off by default, never shipped as stable. Low priority.
 
+**Known limitation (v1):** same-SSID roam — SSID stays, BSSID changes (crossing
+to a different switch/VLAN on the same network name) — fires no dispatcher
+event, so the event-driven v1 is blind to it and never re-checks. Silent
+lockout until the user notices. Only solvable by Vanguard, if at all.
+
 ## Validation: empirical only
 No lab. The user refuses to press "disconnect" in real life — the tool must be
 validated by walking around campus (classroom -> classroom, building ->

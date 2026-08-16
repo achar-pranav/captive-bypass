@@ -7,6 +7,12 @@ Current backend: Linux + NetworkManager (bash). Design is backend-tiered to
 cover other WiFi managers and OSes (student laptops), so treat OS/manager
 specifics as swappable backends, not permanent facts.
 
+## Platform priority
+Windows and macOS are first-class until v1 is out — not afterthoughts. Linux is
+the dev machine, but every design decision must keep Windows/macOS buildable
+and testable. Do not write code that only works on Linux unless an issue says
+so.
+
 ## The one non-negotiable fact (roaming)
 The portal keys a session to MAC + network location (AP/switch). When the user
 roams to another AP (same SSID, e.g. floor 1->4), the old session is never
@@ -41,6 +47,9 @@ session timeout (~3h, unmeasured). MAC randomization per connect is the only
   session resumes cleanly.
 - The user is not a strong dev: answer architecture questions in short
   explanations; never dump whole files into chat.
+- Whenever a framework/approach is picked (GUI, backend, storage, etc.), add an
+  entry to docs/DESIGN.md listing the alternatives we looked at and why each
+  was NOT chosen, before moving on.
 
 ## Tooling
 - gh, curl, bash; current WiFi backend is NetworkManager (nmcli).

@@ -31,6 +31,12 @@ lockout window for a hard radio drop.
 3. Hard fade (elevator/corner) — logout never ships; accept lockout until the
    ~30min session timeout. This is NOT recoverable client-side. Do not over-promise.
 
+## Vanguard (experimental roam handling — not for v1)
+Tier 1 is the only fix for hard fades, and it's Vanguard's future job: monitor
+signal trend + BSSID drift and fire logout BEFORE the drop. **Known risk:
+rubberbanding** — false positives firing logout too eagerly. Decision:
+experimental only, off by default, never shipped as stable. Low priority.
+
 ## Validation: empirical only
 No lab. The user refuses to press "disconnect" in real life — the tool must be
 validated by walking around campus (classroom -> classroom, building ->

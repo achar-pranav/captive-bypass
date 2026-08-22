@@ -1,6 +1,8 @@
 package gui
 
 import (
+	"strings"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
@@ -8,6 +10,10 @@ import (
 
 	"github.com/achar-pranav/captive-bypass/internal/config"
 )
+
+func cleanSSID(s string) string {
+	return strings.TrimSpace(s)
+}
 
 func (u *ui) showWizard() {
 	user := widget.NewEntry()
@@ -31,10 +37,18 @@ func (u *ui) showWizard() {
 		list.Refresh()
 	}
 	addBtn := widget.NewButton("Add SSID", func() {
-		if ssid.Text == "" {
+		name := cleanSSID(ssid.Text)
+		if name == "" {
+			u.toast("Type a WiFi network name first")
 			return
 		}
-		u.cfg.SSIDs = append(u.cfg.SSIDs, ssid.Text)
+		for _, s := range u.cfg.SSIDs {
+			if s == name {
+				ssid.SetText("")
+				return
+			}
+		}
+		u.cfg.SSIDs = append(u.cfg.SSIDs, name)
 		ssid.SetText("")
 		render()
 	})
@@ -57,7 +71,8 @@ func (u *ui) showWizard() {
 		u.saveConfig()
 		u.showMain()
 	})
-	u.w.SetContent(container.NewVBox(
+
+	root := container.NewVBox(
 		widget.NewLabelWithStyle("Welcome — set up captive-bypass", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		widget.NewForm(
 			widget.NewFormItem("Portal username", user),
@@ -66,7 +81,13 @@ func (u *ui) showWizard() {
 		container.NewHBox(ssid, addBtn),
 		list,
 		save,
-	))
+	)
+	u.w.SetContent(root)
+	baseRender := render
+	render = func() {
+		baseRender()
+		root.Refresh()
+	}
 }
 
 func (u *ui) showSSIDEditor() {
@@ -86,17 +107,32 @@ func (u *ui) showSSIDEditor() {
 		}
 		list.Refresh()
 	}
-	addBtn := widget.NewButton("Add", func() {
-		if entry.Text == "" {
+	doAdd := func() {
+		name := cleanSSID(entry.Text)
+		if name == "" {
+			u.toast("Type a WiFi network name first")
 			return
 		}
-		u.cfg.SSIDs = append(u.cfg.SSIDs, entry.Text)
+		for _, s := range u.cfg.SSIDs {
+			if s == name {
+				entry.SetText("")
+				return
+			}
+		}
+		u.cfg.SSIDs = append(u.cfg.SSIDs, name)
 		u.saveConfig()
 		entry.SetText("")
 		render()
-	})
+	}
+	addBtn := widget.NewButton("Add", doAdd)
+	entry.OnSubmitted = func(string) { doAdd() }
 	render()
-	d := dialog.NewCustom("Registered SSIDs", "Done", container.NewVBox(entry, addBtn, list), u.w)
+	content := container.NewVBox(
+		entry,
+		addBtn,
+		container.NewScroll(list),
+	)
+	d := dialog.NewCustom("Registered SSIDs", "Done", content, u.w)
 	d.Resize(fyne.NewSize(400, 360))
 	d.Show()
 }

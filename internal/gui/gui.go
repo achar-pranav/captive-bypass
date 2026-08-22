@@ -16,6 +16,7 @@ import (
 
 	"github.com/achar-pranav/captive-bypass/backends/nmcli"
 	"github.com/achar-pranav/captive-bypass/internal/config"
+	"github.com/achar-pranav/captive-bypass/internal/install"
 	"github.com/achar-pranav/captive-bypass/internal/portal"
 )
 
@@ -86,8 +87,38 @@ func (u *ui) showMain() {
 	ssidsBtn := widget.NewButton("Manage SSIDs", u.showSSIDEditor)
 	credsBtn := widget.NewButton("Change credentials", u.showCredsDialog)
 	installLabel := widget.NewLabel("Background watcher:")
-	enableBtn := widget.NewButton("Enable", func() { u.toast(installerPlaceholder) })
-	disableBtn := widget.NewButton("Disable", func() { u.toast(installerPlaceholder) })
+	watcherStatus := widget.NewLabel("")
+	enableBtn := widget.NewButton("Enable", func() {
+		go func() {
+			err := install.Enable()
+			msg := "Watcher enabled — auto sign-in/out active"
+			if err != nil {
+				msg = "Enable failed: " + err.Error()
+			}
+			fyne.Do(func() { u.toast(msg); watcherStatus.Refresh() })
+		}()
+	})
+	disableBtn := widget.NewButton("Disable", func() {
+		go func() {
+			err := install.Disable()
+			msg := "Watcher disabled"
+			if err != nil {
+				msg = "Disable failed: " + err.Error()
+			}
+			fyne.Do(func() { u.toast(msg); watcherStatus.Refresh() })
+		}()
+	})
+	go func() {
+		for {
+			on, _ := install.Status()
+			txt := "not installed"
+			if on {
+				txt = "installed"
+			}
+			fyne.Do(func() { watcherStatus.SetText(txt) })
+			time.Sleep(5 * time.Second)
+		}
+	}()
 
 	top := container.NewVBox(
 		u.status,
@@ -95,7 +126,7 @@ func (u *ui) showMain() {
 		widget.NewLabelWithStyle("Registered SSIDs: "+fmt.Sprint(len(u.cfg.SSIDs)), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		container.NewHBox(ssidsBtn, credsBtn),
 		widget.NewSeparator(),
-		container.NewHBox(installLabel, enableBtn, disableBtn),
+		container.NewHBox(installLabel, watcherStatus, enableBtn, disableBtn),
 		widget.NewSeparator(),
 		widget.NewLabel("Activity"),
 	)
@@ -104,8 +135,6 @@ func (u *ui) showMain() {
 	go u.refreshStatusLoop()
 	go u.refreshLogLoop()
 }
-
-const installerPlaceholder = "Watcher auto-start arrives in the next milestone — run 'captive-bypass serve' manually for now."
 
 func (u *ui) refreshStatusLoop() {
 	for {

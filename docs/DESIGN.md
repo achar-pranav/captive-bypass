@@ -115,6 +115,19 @@ Alternatives considered and rejected:
   code (watching, cleanup) with no advantage; D-Bus — heavy dependency for one
   signal.
 
+## Watcher install/uninstall
+- **Linux:** systemd **user** service for `serve` (no root, autostart at login,
+  Restart=on-failure) + NM dispatcher hook installed by a single `pkexec`
+  (GUI pops the auth dialog; hook is generated with the user's socket path
+  baked in and only ever curls — it never parses nmcli, never touches creds).
+- **Alternatives rejected:** running `serve` itself as a root dispatcher child
+  (bash's model — creds exposed to root-spawned processes, no session bus for
+  notifications); polkit rule to let the binary self-install without prompt
+  (wider attack surface than one explicit pkexec); sudoers line (needs editor
+  dance, same surface).
+- **Windows:** two per-user scheduled tasks at logon (`serve`, `watch`),
+  `/RL LIMITED` so zero admin; AF_UNIX socket works unmodified on Win10+.
+
 ## ELI5 glossary
 | Term | Plain meaning |
 |---|---|

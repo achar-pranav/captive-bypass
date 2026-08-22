@@ -119,6 +119,12 @@ func (s *Server) Handle(ctx context.Context, cmd string) string {
 			s.cancel()
 		}
 		return "ok stopping"
+	case cmd == "connect-current":
+		ssid, err := s.Wifi.ActiveSSID()
+		if err != nil || ssid == "" {
+			return "skip no-wifi"
+		}
+		return s.onConnect(ctx, ssid)
 	case strings.HasPrefix(cmd, "connect "):
 		return s.onConnect(ctx, strings.TrimPrefix(cmd, "connect "))
 	default:

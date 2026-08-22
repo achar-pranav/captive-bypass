@@ -223,6 +223,15 @@ func TestShutdownNoLogoutWhenDown(t *testing.T) {
 	}
 }
 
+func TestConnectCurrentUsesBackend(t *testing.T) {
+	s, p, _, _ := newTestServer(t)
+	p.loginOK = true
+	reply := s.Handle(context.Background(), "connect-current")
+	if reply != "ok logged-in" {
+		t.Fatalf("reply = %q, want ok logged-in", reply)
+	}
+}
+
 func TestSocketRoundTrip(t *testing.T) {
 	s, p, _, _ := newTestServer(t)
 	p.loginOK = true

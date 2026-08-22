@@ -18,29 +18,43 @@ sent from the SAME location (AP/switch) the session was created on. Sending it
 from the new AP does nothing. (Verified empirically: the user had to walk back,
 reconnect to the old AP, send logout, then return.)
 
+**Confirmed empirically:** BSSID changes per classroom on the campus network
+(same SSID, different AP). Walking from one class to the next triggers a stale
+session lockout even without changing networks. This is not an edge case — it is
+the daily experience.
+
 ## Session timeout
 Worst case after a missed logout: the portal keeps the session until its idle
 timeout. Rough estimate ~30 Minutes; NOT measured. This defines the worst-case
 lockout window for a hard radio drop.
 
 ## The tiered mitigation (why the roam fix is "best effort")
-1. Pre-emptive logout on signal degradation — fire while the RSSI ramp is
-   happening and we still have a usable link (a walk gives seconds of warning).
+1. **Vanguard (active):** Monitor RSSI trend while associated. On strong→weak
+   signal ramp, fire predictive logout while still on the old AP. If signal
+   stabilizes at a weak threshold, auto re-login + GUI notification warning
+   the user they are at the edge of coverage. This is the only fix for
+   classroom-to-classroom roams.
 2. NM dispatcher pre-down logout — catches graceful disassociates (coverage
    edge) where the client initiates the drop.
 3. Hard fade (elevator/corner) — logout never ships; accept lockout until the
    ~30min session timeout. This is NOT recoverable client-side. Do not over-promise.
 
-## Vanguard (experimental roam handling — not for v1)
-Tier 1 is the only fix for hard fades, and it's Vanguard's future job: monitor
-signal trend + BSSID drift and fire logout BEFORE the drop. **Known risk:
-rubberbanding** — false positives firing logout too eagerly. Decision:
-experimental only, off by default, never shipped as stable. Low priority.
+## Vanguard (roam handling)
+**Status: confirmed necessary.** BSSID-per-classroom makes this a daily problem,
+not an edge case. Active development target.
 
-**Known limitation (v1):** same-SSID roam — SSID stays, BSSID changes (crossing
-to a different switch/VLAN on the same network name) — fires no dispatcher
-event, so the event-driven v1 is blind to it and never re-checks. Silent
-lockout until the user notices. Only solvable by Vanguard, if at all.
+Tier 1 is the only fix for classroom-to-classroom roams, and it's Vanguard's
+job: monitor signal trend + BSSID drift and fire logout BEFORE the drop.
+**Known risk: rubberbanding** — false positives firing logout too eagerly.
+Decision: experimental only, off by default, never shipped as stable.
+
+**Target flow:**
+1. RSSI strong → weak trend detected: fire predictive logout while still on old
+   AP (signal still usable, link still alive).
+2. RSSI stabilizes at weak threshold (e.g. -75 dBm): auto re-login + GUI
+   notification ("edge of coverage").
+3. RSSI crosses critical threshold before logout fires: hard drop, accept
+   lockout until ~30min session timeout. Not recoverable client-side.
 
 ## Validation: empirical only
 No lab. The user refuses to press "disconnect" in real life — the tool must be

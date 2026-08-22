@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-
-	"github.com/achar-pranav/captive-bypass/backends"
 )
 
 var ErrNoSignal = errors.New("no signal reading")
@@ -14,8 +12,6 @@ var ErrNoSignal = errors.New("no signal reading")
 type Backend struct{}
 
 func New() *Backend { return &Backend{} }
-
-var _ backends.Backend = (*Backend)(nil)
 
 func (b *Backend) ActiveSSID() (string, error) {
 	out, err := run("nmcli", "-t", "-f", "active,ssid", "dev", "wifi")

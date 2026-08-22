@@ -97,6 +97,13 @@ Alternatives considered and rejected:
 - **Events:** `WlanRegisterNotification` (pure Go syscall, no CGO). No poller
   and no poller fallback — revisit only if real-hardware testing proves the
   listener broken. Goal: minimal LOC.
+- **Events -> serve bridge:** the listener dials the same Unix socket the Linux
+  dispatcher hook uses (`connect <ssid>` / `disconnect` wire format); AF_UNIX
+  ships with Windows 10+, so `serve` has zero platform branching.
+- **netsh locales:** parse acronym keys (SSID/BSSID are not translated) and
+  detect Signal structurally by a trailing `%` value; localized State lines are
+  ignored entirely — Up() means an SSID/BSSID line was present. Fixtures cover
+  en/de/fr/es plus colons inside SSIDs.
 
 ## serve event plumbing (root hook -> user daemon)
 - **State:** Unix socket in the config dir (0700). The root NM dispatcher hook

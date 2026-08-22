@@ -56,3 +56,6 @@ dkms.conf
 
 # Go
 !go.mod
+
+# local build output
+captive-bypass

@@ -9,12 +9,12 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/achar-pranav/captive-bypass/backends/windows"
 	"github.com/achar-pranav/captive-bypass/internal/gui"
 	"github.com/achar-pranav/captive-bypass/internal/serve"
 )
 
 const usageText = `captive-bypass - PESU Sophos/Cyberoam captive portal auto-login
-
 Usage:
   captive-bypass <command>
 
@@ -22,6 +22,7 @@ Commands:
   login     log in to the captive portal
   logout    log out of the captive portal
   serve     background watcher: auto sign-in/out on WiFi events (no polling)
+  watch     (windows) WLAN event listener; forwards events to a running watcher
   event     send an event to a running watcher:
             'event connect <ssid>' | 'event disconnect'
   gui       control panel
@@ -44,6 +45,8 @@ func main() {
 		runServe()
 	case "event":
 		runEvent(os.Args[2:])
+	case "watch":
+		runWatch()
 	case "gui":
 		if err := gui.Run(); err != nil {
 			fmt.Fprintln(os.Stderr, "captive-bypass:", err)
@@ -59,6 +62,15 @@ func runServe() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := serve.New().Run(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, "captive-bypass:", err)
+		os.Exit(1)
+	}
+}
+
+func runWatch() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := windows.Listen(ctx, serve.DefaultSocketPath()); err != nil {
 		fmt.Fprintln(os.Stderr, "captive-bypass:", err)
 		os.Exit(1)
 	}

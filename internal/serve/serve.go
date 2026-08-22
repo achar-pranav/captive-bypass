@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/achar-pranav/captive-bypass/backends"
-	"github.com/achar-pranav/captive-bypass/backends/nmcli"
 	"github.com/achar-pranav/captive-bypass/internal/config"
 	"github.com/achar-pranav/captive-bypass/internal/portal"
 	"github.com/achar-pranav/captive-bypass/internal/state"
@@ -54,7 +53,7 @@ func New() *Server {
 		SocketPath:  DefaultSocketPath(),
 		SettleDelay: settleDelay,
 		Portal:      portal.New("", nil),
-		Wifi:        nmcli.New(),
+		Wifi:        backends.Default(),
 		Notify:      notifySend,
 	}
 }

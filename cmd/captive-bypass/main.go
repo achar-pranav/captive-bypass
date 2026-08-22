@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/achar-pranav/captive-bypass/internal/gui"
 	"github.com/achar-pranav/captive-bypass/internal/serve"
 )
 
@@ -37,12 +38,17 @@ func main() {
 	switch os.Args[1] {
 	case "-h", "--help":
 		usage()
-	case "login", "logout", "gui":
+	case "login", "logout":
 		notImplemented(os.Args[1])
 	case "serve":
 		runServe()
 	case "event":
 		runEvent(os.Args[2:])
+	case "gui":
+		if err := gui.Run(); err != nil {
+			fmt.Fprintln(os.Stderr, "captive-bypass:", err)
+			os.Exit(1)
+		}
 	default:
 		fmt.Fprintf(os.Stderr, "captive-bypass: unknown command %q\n", os.Args[1])
 		os.Exit(2)

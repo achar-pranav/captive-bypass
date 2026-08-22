@@ -77,6 +77,18 @@ func (c *Client) Logout(ctx context.Context, username string) error {
 	return err
 }
 
+func (c *Client) Livecheck(ctx context.Context) (bool, error) {
+	respBody, err := c.post(ctx, "/livecheck.xml", url.Values{})
+	if err != nil {
+		return false, err
+	}
+	var pr portalResponse
+	if err := xml.Unmarshal(respBody, &pr); err != nil {
+		return false, err
+	}
+	return pr.Status == "LIVE", nil
+}
+
 func (c *Client) post(ctx context.Context, path string, form url.Values) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, strings.NewReader(form.Encode()))
 	if err != nil {

@@ -98,6 +98,16 @@ Alternatives considered and rejected:
   and no poller fallback — revisit only if real-hardware testing proves the
   listener broken. Goal: minimal LOC.
 
+## serve event plumbing (root hook -> user daemon)
+- **State:** Unix socket in the config dir (0700). The root NM dispatcher hook
+  is a ~3-line curl one-liner against it; `serve` owns notifications, cooldowns,
+  state writes. GUI (#9) reuses the same channel for control later.
+- **Alternatives rejected:** per-event binary launch (bash's trick) — no
+  persistent process to notify from or for the GUI to talk to, contradicts
+  "serve runs as a plain user service"; event-file dropbox + inotify — most
+  code (watching, cleanup) with no advantage; D-Bus — heavy dependency for one
+  signal.
+
 ## ELI5 glossary
 | Term | Plain meaning |
 |---|---|

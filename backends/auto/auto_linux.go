@@ -4,9 +4,9 @@ package auto
 
 import (
 	"github.com/achar-pranav/captive-bypass/backends"
-	"github.com/achar-pranav/captive-bypass/backends/nmcli"
+	"github.com/achar-pranav/captive-bypass/backends/iw"
 )
 
 func Default() backends.Backend {
-	return nmcli.New()
+	return iw.New()
 }

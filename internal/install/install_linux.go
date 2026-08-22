@@ -3,6 +3,7 @@
 package install
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,11 +12,7 @@ import (
 	"github.com/achar-pranav/captive-bypass/internal/config"
 )
 
-const (
-	unitName  = "captive-bypass.service"
-	hookPath  = "/etc/NetworkManager/dispatcher.d/90-captive-bypass"
-	hookPerms = 0o755
-)
+const unitName = "captive-bypass.service"
 
 const unitTemplate = `[Unit]
 Description=captive-bypass captive portal watcher
@@ -30,20 +27,10 @@ RestartSec=3
 WantedBy=default.target
 `
 
-const hookTemplate = `#!/bin/sh
-SOCK=%q
-case "$2" in
-	up)
-		printf 'connect-current\n' | curl -s --unix-socket "$SOCK" http://localhost/hook >/dev/null 2>&1 &
-		;;
-	pre-down)
-		printf 'disconnect\n' | curl -s --unix-socket "$SOCK" http://localhost/hook >/dev/null 2>&1 &
-		;;
-esac
-exit 0
-`
-
 func Enable() error {
+	if _, err := exec.LookPath("iw"); err != nil {
+		return errors.New("iw not found — install the iw package (e.g. 'sudo apt install iw'); captive-bypass needs it to read WiFi state")
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("resolve executable: %w", err)
@@ -57,7 +44,7 @@ func Enable() error {
 	if out, err := exec.Command("systemctl", "--user", "enable", "--now", unitName).CombinedOutput(); err != nil {
 		return fmt.Errorf("enable service: %w: %s", err, out)
 	}
-	return installHook(hookContent(config.DefaultDir()))
+	return nil
 }
 
 func Disable() error {
@@ -70,9 +57,6 @@ func Disable() error {
 	if out, err := exec.Command("systemctl", "--user", "daemon-reload").CombinedOutput(); err != nil && firstErr == nil {
 		firstErr = fmt.Errorf("daemon-reload: %w: %s", err, out)
 	}
-	if err := removeHook(); err != nil && firstErr == nil {
-		firstErr = err
-	}
 	return firstErr
 }
 
@@ -81,12 +65,7 @@ func Status() (bool, error) {
 	if err != nil {
 		return false, nil
 	}
-	enabled := string(out) == "enabled\n"
-	hookInstalled, err := hookInstalled()
-	if err != nil {
-		return enabled, err
-	}
-	return enabled && hookInstalled, nil
+	return string(out) == "enabled\n", nil
 }
 
 func Uninstall() error {
@@ -110,56 +89,4 @@ func writeUnit(exe string) error {
 		return err
 	}
 	return os.WriteFile(p, []byte(fmt.Sprintf(unitTemplate, exe)), 0o644)
-}
-
-func hookContent(sockDir string) []byte {
-	return []byte(fmt.Sprintf(hookTemplate, filepath.Join(sockDir, "serve.sock")))
-}
-
-func installHook(content []byte) error {
-	tmp, err := os.CreateTemp("", "captive-bypass-hook-*")
-	if err != nil {
-		return err
-	}
-	path := tmp.Name()
-	defer os.Remove(path)
-	if _, err := tmp.Write(content); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Chmod(path, hookPerms); err != nil {
-		return err
-	}
-	out, err := exec.Command("pkexec", "install", "-D", "-m", "0755", path, hookPath).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("pkexec hook install: %w: %s", err, out)
-	}
-	return nil
-}
-
-func removeHook() error {
-	out, err := exec.Command("pkexec", "rm", "-f", hookPath).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("pkexec hook removal: %w: %s", err, out)
-	}
-	return nil
-}
-
-func hookInstalled() (bool, error) {
-	fi, err := os.Stat(hookPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	content, err := os.ReadFile(hookPath)
-	if err != nil {
-		return false, err
-	}
-	want := hookContent(config.DefaultDir())
-	return fi.Mode().Perm() == hookPerms && string(content) == string(want), nil
 }

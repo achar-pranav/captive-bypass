@@ -19,6 +19,7 @@ import (
 	"github.com/achar-pranav/captive-bypass/internal/config"
 	"github.com/achar-pranav/captive-bypass/internal/portal"
 	"github.com/achar-pranav/captive-bypass/internal/state"
+	"github.com/achar-pranav/captive-bypass/internal/watcher"
 )
 
 const settleDelay = 1500 * time.Millisecond
@@ -78,6 +79,29 @@ func (s *Server) Run(ctx context.Context) error {
 		return fmt.Errorf("listen %s: %w", s.SocketPath, err)
 	}
 	defer os.Remove(s.SocketPath)
+
+	dbg := os.Getenv("CAPTIVE_WATCHER_DEBUG") != ""
+	w, werr := watcher.Start(func() {
+		ssid, ssidErr := s.Wifi.ActiveSSID()
+		up, upErr := s.Wifi.Up()
+		if dbg {
+			log.Printf("serve: kernel event -> ssid=%q (err %v) up=%v (err %v)", ssid, ssidErr, up, upErr)
+		}
+		if up && ssid != "" {
+			if r := s.Handle(ctx, "connect-current"); dbg {
+				log.Printf("serve: connect-current -> %s", r)
+			}
+			return
+		}
+		if r := s.Handle(ctx, "disconnect"); dbg {
+			log.Printf("serve: disconnect -> %s", r)
+		}
+	})
+	if werr != nil {
+		log.Printf("kernel watcher unavailable (%v) — falling back to socket events only", werr)
+	} else {
+		defer w.Stop()
+	}
 
 	go func() {
 		<-ctx.Done()
@@ -152,8 +176,10 @@ func (s *Server) onConnect(ctx context.Context, ssid string) string {
 
 	online, err := s.Portal.Livecheck(ctx)
 	if err == nil && online {
-		s.Notify(fmt.Sprintf("Already online on %s — no action needed", ssid))
-		s.logf("already online on %s", ssid)
+		if !st.IsRecent(state.ActionLogin, cfg.Timings.LoginCooldown) {
+			s.Notify(fmt.Sprintf("Already online on %s — no action needed", ssid))
+			s.logf("already online on %s", ssid)
+		}
 		return "ok already-online"
 	}
 	if st.IsRecent(state.ActionLogin, cfg.Timings.LoginCooldown) {
@@ -253,7 +279,7 @@ func (s *Server) creds(cfg *config.Config) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	return cfg.GetCreds(fp)
+	return cfg.GetActiveCreds(fp)
 }
 
 func hasSSID(list []string, ssid string) bool {

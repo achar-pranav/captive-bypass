@@ -19,7 +19,7 @@ func TestRoundTrip(t *testing.T) {
 	cfg := Default()
 	cfg.SSIDs = []string{"ELEMENT BLOCK", "ELEMENT-BLOCK-5G"}
 	cfg.Paused = true
-	if err := cfg.SetCreds([]byte(fpA), "1BI22CS123", "hunter2"); err != nil {
+	if err := cfg.SetCredSet([]byte(fpA), "default", "1BI22CS123", "hunter2"); err != nil {
 		t.Fatalf("SetCreds: %v", err)
 	}
 	if err := Save(path, cfg); err != nil {
@@ -45,7 +45,7 @@ func TestRoundTrip(t *testing.T) {
 		t.Errorf("Timings = %+v, want %+v", got.Timings, want.Timings)
 	}
 
-	user, pass, err := got.GetCreds([]byte(fpA))
+	user, pass, err := got.GetActiveCreds([]byte(fpA))
 	if err != nil {
 		t.Fatalf("Creds: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestRoundTrip(t *testing.T) {
 func TestNoPlaintextPasswordOnDisk(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	cfg := Default()
-	if err := cfg.SetCreds([]byte(fpA), "1BI22CS123", "hunter2"); err != nil {
+	if err := cfg.SetCredSet([]byte(fpA), "default", "1BI22CS123", "hunter2"); err != nil {
 		t.Fatalf("SetCreds: %v", err)
 	}
 	if err := Save(path, cfg); err != nil {
@@ -77,17 +77,17 @@ func TestNoPlaintextPasswordOnDisk(t *testing.T) {
 
 func TestWrongFingerprintFails(t *testing.T) {
 	cfg := Default()
-	if err := cfg.SetCreds([]byte(fpA), "1BI22CS123", "hunter2"); err != nil {
+	if err := cfg.SetCredSet([]byte(fpA), "default", "1BI22CS123", "hunter2"); err != nil {
 		t.Fatalf("SetCreds: %v", err)
 	}
-	if _, _, err := cfg.GetCreds([]byte(fpB)); err == nil {
+	if _, _, err := cfg.GetActiveCreds([]byte(fpB)); err == nil {
 		t.Error("Creds with a different fingerprint succeeded, want error")
 	}
 }
 
 func TestCredsNotSet(t *testing.T) {
 	cfg := Default()
-	if _, _, err := cfg.GetCreds([]byte(fpA)); err != ErrNoCreds {
+	if _, _, err := cfg.GetActiveCreds([]byte(fpA)); err != ErrNoCreds {
 		t.Errorf("Creds = %v, want ErrNoCreds", err)
 	}
 }
@@ -99,7 +99,7 @@ func TestFileAndDirPerms(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
 	cfg := Default()
-	if err := cfg.SetCreds([]byte(fpA), "1BI22CS123", "hunter2"); err != nil {
+	if err := cfg.SetCredSet([]byte(fpA), "default", "1BI22CS123", "hunter2"); err != nil {
 		t.Fatalf("SetCreds: %v", err)
 	}
 	if err := Save(path, cfg); err != nil {

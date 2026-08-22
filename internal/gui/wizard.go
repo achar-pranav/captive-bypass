@@ -1,6 +1,8 @@
 package gui
 
 import (
+	"fmt"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
@@ -9,29 +11,64 @@ import (
 	"github.com/achar-pranav/captive-bypass/internal/config"
 )
 
-func (u *ui) toggleSSID(name string, on bool) {
-	if on {
-		for _, s := range u.cfg.SSIDs {
-			if s == name {
-				return
-			}
-		}
-		u.cfg.SSIDs = append(u.cfg.SSIDs, name)
-		return
-	}
-	u.cfg.SSIDs = removeSSID(u.cfg.SSIDs, name)
+// staged selection shared by wizard and editor dialogs
+type ssidStaging struct {
+	picked map[string]bool
+	order  []string
 }
 
+func newStaging(ssids []string) *ssidStaging {
+	s := &ssidStaging{picked: map[string]bool{}}
+	for _, v := range ssids {
+		if !s.picked[v] {
+			s.picked[v] = true
+			s.order = append(s.order, v)
+		}
+	}
+	return s
+}
+
+func (s *ssidStaging) toggle(ssid string, on bool) {
+	if on {
+		if !s.picked[ssid] {
+			s.picked[ssid] = true
+			s.order = append(s.order, ssid)
+		}
+		return
+	}
+	if s.picked[ssid] {
+		delete(s.picked, ssid)
+		for i, v := range s.order {
+			if v == ssid {
+				s.order = append(s.order[:i], s.order[i+1:]...)
+				break
+			}
+		}
+	}
+}
+
+// ---------- first-run wizard ----------
+
 func (u *ui) showWizard() {
+	name := widget.NewEntry()
+	name.SetText("default")
 	user := widget.NewEntry()
 	user.SetPlaceHolder("SRN (portal username)")
 	pass := widget.NewPasswordEntry()
 	pass.SetPlaceHolder("Password")
 
-	picker := newSSIDPicker(u.wifi, ssidSet(u.cfg.SSIDs), u.toggleSSID)
+	staging := newStaging(u.cfg.SSIDs)
+	picker := newSSIDPicker(u.wifi, pickerHooks{
+		checked: func(ssid string) bool { return staging.picked[ssid] },
+		onRow:   staging.toggle,
+	})
 
 	save := widget.NewButton("Save and finish", func() {
-		if user.Text == "" || pass.Text == "" || len(u.cfg.SSIDs) == 0 {
+		setName := name.Text
+		if setName == "" {
+			setName = "default"
+		}
+		if user.Text == "" || pass.Text == "" || len(staging.order) == 0 {
 			u.toast("Fill in SRN, password, and tick at least one network")
 			return
 		}
@@ -40,10 +77,11 @@ func (u *ui) showWizard() {
 			u.toast("Fingerprint error: " + err.Error())
 			return
 		}
-		if err := u.cfg.SetCreds(fp, user.Text, pass.Text); err != nil {
+		if err := u.cfg.SetCredSet(fp, setName, user.Text, pass.Text); err != nil {
 			u.toast("Could not encrypt credentials: " + err.Error())
 			return
 		}
+		u.cfg.SSIDs = staging.order
 		u.saveConfig()
 		u.showMain()
 	})
@@ -51,41 +89,54 @@ func (u *ui) showWizard() {
 	root := container.NewBorder(nil, save, nil, nil, container.NewVBox(
 		widget.NewLabelWithStyle("Welcome — set up captive-bypass", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		widget.NewForm(
+			widget.NewFormItem("Set name", name),
 			widget.NewFormItem("Portal username", user),
 			widget.NewFormItem("Portal password", pass),
 		),
-		picker,
+		picker.root,
 	))
 	u.w.SetContent(root)
 }
 
+// ---------- SSID editor (batch apply on OK) ----------
+
 func (u *ui) showSSIDEditor() {
-	picker := newSSIDPicker(u.wifi, ssidSet(u.cfg.SSIDs), func(ssid string, on bool) {
-		u.toggleSSID(ssid, on)
-		u.saveConfig()
+	staging := newStaging(u.cfg.SSIDs)
+	picker := newSSIDPicker(u.wifi, pickerHooks{
+		checked: func(ssid string) bool { return staging.picked[ssid] },
+		onRow:   staging.toggle,
 	})
-	d := dialog.NewCustom("Registered SSIDs", "Done", picker, u.w)
-	d.Resize(fyne.NewSize(420, 420))
+	d := dialog.NewCustomConfirm("Registered SSIDs", "OK", "Cancel", picker.root, func(ok bool) {
+		if !ok {
+			return
+		}
+		u.cfg.SSIDs = staging.order
+		u.saveConfig()
+	}, u.w)
+	d.Resize(fyne.NewSize(420, 480))
 	d.Show()
 }
 
-func ssidSet(ssids []string) map[string]bool {
-	m := make(map[string]bool, len(ssids))
-	for _, s := range ssids {
-		m[s] = true
-	}
-	return m
-}
+// ---------- credential set form ----------
 
 func (u *ui) showCredsDialog() {
+	name := widget.NewEntry()
+	name.SetPlaceHolder("set name")
 	user := widget.NewEntry()
 	pass := widget.NewPasswordEntry()
-	user.SetText(u.cfg.Creds.Username)
-	form := dialog.NewForm("Change credentials", "Save", "Cancel", []*widget.FormItem{
+	existing := u.activeSet()
+	if existing != nil {
+		name.SetText(existing.Name)
+		user.SetText(existing.Username)
+	} else if u.cfg.ActiveSet != "" || len(u.cfg.CredSets) > 0 {
+		name.SetText(nextName(u.cfg))
+	}
+	form := dialog.NewForm("Credential set", "Save", "Cancel", []*widget.FormItem{
+		widget.NewFormItem("Set name", name),
 		widget.NewFormItem("Username", user),
-		widget.NewFormItem("New password", pass),
+		widget.NewFormItem("Password", pass),
 	}, func(ok bool) {
-		if !ok || pass.Text == "" {
+		if !ok || user.Text == "" || pass.Text == "" {
 			return
 		}
 		fp, err := config.MachineFingerprint()
@@ -93,23 +144,43 @@ func (u *ui) showCredsDialog() {
 			u.toast("Fingerprint error: " + err.Error())
 			return
 		}
-		if err := u.cfg.SetCreds(fp, user.Text, pass.Text); err != nil {
+		nm := name.Text
+		if nm == "" {
+			nm = nextName(u.cfg)
+		}
+		if err := u.cfg.SetCredSet(fp, nm, user.Text, pass.Text); err != nil {
 			u.toast("Could not encrypt credentials: " + err.Error())
 			return
 		}
 		u.saveConfig()
-		u.toast("Credentials updated")
+		u.toast("Credentials saved (" + nm + ")")
+		u.showMain()
 	}, u.w)
-	form.Resize(fyne.NewSize(420, 240))
+	form.Resize(fyne.NewSize(420, 300))
 	form.Show()
 }
 
-func removeSSID(list []string, name string) []string {
-	out := list[:0]
-	for _, s := range list {
-		if s != name {
-			out = append(out, s)
+func (u *ui) activeSet() *config.CredSet {
+	for i := range u.cfg.CredSets {
+		if u.cfg.CredSets[i].Name == u.cfg.ActiveSet {
+			return &u.cfg.CredSets[i]
 		}
 	}
-	return out
+	return nil
+}
+
+func nextName(c *config.Config) string {
+	for i := 1; ; i++ {
+		cand := fmt.Sprintf("set-%d", i)
+		taken := false
+		for _, cs := range c.CredSets {
+			if cs.Name == cand {
+				taken = true
+				break
+			}
+		}
+		if !taken {
+			return cand
+		}
+	}
 }

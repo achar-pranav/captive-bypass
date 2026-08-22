@@ -14,11 +14,14 @@ const DefaultPortal = "https://rr.pes.edu:8090"
 var ErrNoConfig = errors.New("no config file")
 
 type Config struct {
-	SSIDs   []string  `json:"ssids"`
-	Paused  bool      `json:"paused"`
-	Portal  string    `json:"portal"`
-	Timings Timings   `json:"timings"`
-	Creds   credsBlob `json:"creds"`
+	SSIDs     []string  `json:"ssids"`
+	Paused    bool      `json:"paused"`
+	Portal    string    `json:"portal"`
+	Timings   Timings   `json:"timings"`
+	CredSets  []CredSet `json:"cred_sets"`
+	ActiveSet string    `json:"active_set"`
+	Vanguard  bool      `json:"vanguard"`
+	Creds     credsBlob `json:"creds,omitempty"`
 }
 
 type Timings struct {
@@ -63,7 +66,22 @@ func Load(path string) (*Config, error) {
 	if err := json.Unmarshal(b, c); err != nil {
 		return nil, err
 	}
+	c.migrateLegacyCreds()
 	return c, nil
+}
+
+func (c *Config) migrateLegacyCreds() {
+	if len(c.CredSets) > 0 || len(c.Creds.Ciphertext) == 0 {
+		return
+	}
+	c.CredSets = append(c.CredSets, CredSet{
+		Name:       "default",
+		Username:   c.Creds.Username,
+		Salt:       c.Creds.Salt,
+		Nonce:      c.Creds.Nonce,
+		Ciphertext: c.Creds.Ciphertext,
+	})
+	c.ActiveSet = "default"
 }
 
 func Save(path string, c *Config) error {

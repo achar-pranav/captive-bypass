@@ -10,33 +10,45 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/achar-pranav/captive-bypass/backends/windows"
 	"github.com/achar-pranav/captive-bypass/internal/config"
 	"github.com/achar-pranav/captive-bypass/internal/gui"
 	"github.com/achar-pranav/captive-bypass/internal/install"
+	"github.com/achar-pranav/captive-bypass/internal/portal"
 	"github.com/achar-pranav/captive-bypass/internal/serve"
 	"github.com/achar-pranav/captive-bypass/internal/state"
 )
 
 const usageText = `captive-bypass - PESU Sophos/Cyberoam captive portal auto-login
 Usage:
-  captive-bypass <command>
+  captive-bypass <command> [flags]
 
-Commands:
-  login     log in to the captive portal
-  logout    log out of the captive portal
-  serve     background watcher: auto sign-in/out on WiFi events (no polling)
-  watch     (windows) WLAN event listener; forwards events to a running watcher
-  event     send an event to a running watcher:
-            'event connect <ssid>' | 'event disconnect'
-  gui       control panel
-  install   set up the background watcher (service + hook/task)
-  uninstall remove the watcher AND wipe credentials, config, state
-  dev       tester helpers: wipe | reset-state | clear-vanguard | force
+Commands (mirrors of the original script):
+  login            force a login attempt now (best-effort logout first)
+  logout           send a logout request to clear the session
+  enable           resume auto login/logout
+  disable          pause auto login/logout (e.g. a friend's login)
+  update-creds     store a credential set: --user SRN --pass PASS [--name NAME]
+  set-network      replace recognized networks: set-network SSID [SSID...]
+  install          set up the background watcher (no admin needed)
+  uninstall        remove the watcher AND wipe credentials, config, state
 
-Flags:
-  -h, --help  show this help
+Watcher/service:
+  serve            background watcher (kernel events on linux)
+  watch            (windows) WLAN event listener -> running watcher
+  event connect <ssid> | event disconnect    poke a running watcher manually
+
+  gui              control panel
+  dev              tester helpers: wipe | reset-state | clear-vanguard | force
+  -h, --help       show this help
+
+Environment overrides (advanced):
+  CAPTIVE_BYPASS_PORTAL      portal base URL (default https://rr.pes.edu:8090)
+  CAPTIVE_BYPASS_CONFIG      config dir (default ~/.config/captive-bypass)
+  CAPTIVE_BYPASS_RETRY_DELAY seconds between retries (default 5)
+  CAPTIVE_DEBOUNCE_MS        netlink debounce ms (linux watcher, default 800)
 `
 
 func main() {
@@ -44,11 +56,20 @@ func main() {
 		usage()
 		os.Exit(1)
 	}
-	switch os.Args[1] {
-	case "-h", "--help":
+	arg := strings.TrimPrefix(os.Args[1], "--")
+	switch arg {
+	case "-h", "help":
 		usage()
-	case "login", "logout":
-		notImplemented(os.Args[1])
+	case "login":
+		runLogin()
+	case "logout":
+		runLogout()
+	case "enable", "disable":
+		runToggle(arg == "disable")
+	case "update-creds":
+		runUpdateCreds(os.Args[2:])
+	case "set-network":
+		runSetNetwork(os.Args[2:])
 	case "serve":
 		runServe()
 	case "event":
@@ -57,7 +78,7 @@ func main() {
 		runWatch()
 	case "install":
 		must(install.Enable(), "install")
-		fmt.Println("Watcher installed: service + dispatcher hook active.")
+		fmt.Println("Watcher installed.")
 	case "uninstall":
 		if !confirm("Remove watcher AND wipe credentials, config, state? [y/N] ") {
 			return
@@ -75,6 +96,114 @@ func main() {
 		fmt.Fprintf(os.Stderr, "captive-bypass: unknown command %q\n", os.Args[1])
 		os.Exit(2)
 	}
+}
+
+func loadConfigOrDie() *config.Config {
+	dir := config.DefaultDir()
+	cfg, err := config.Load(filepath.Join(dir, "config.json"))
+	if err != nil && err != config.ErrNoConfig {
+		must(err, "load config")
+	}
+	return cfg
+}
+
+func saveConfig(cfg *config.Config) {
+	must(config.Save(filepath.Join(config.DefaultDir(), "config.json"), cfg), "save config")
+}
+
+func runLogin() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cfg := loadConfigOrDie()
+	fp := fingerprint()
+	user, pass, err := cfg.GetActiveCreds(fp)
+	if err != nil {
+		must(err, "credentials")
+	}
+	p := portal.New(cfg.Portal, nil)
+	_ = p.Logout(ctx, user)
+	time.Sleep(500 * time.Millisecond)
+	ok, msg, err := p.Login(ctx, user, pass)
+	switch {
+	case err != nil:
+		must(err, "login")
+	case ok:
+		fmt.Println("Logged in.")
+	default:
+		fmt.Fprintf(os.Stderr, "Portal says: %s\n", msg)
+		os.Exit(1)
+	}
+}
+
+func runLogout() {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	cfg := loadConfigOrDie()
+	user, _, err := cfg.GetActiveCreds(fingerprint())
+	if err != nil {
+		user = ""
+	}
+	must(portal.New(cfg.Portal, nil).Logout(ctx, user), "logout")
+	fmt.Println("Logged out.")
+}
+
+func runToggle(disable bool) {
+	cfg := loadConfigOrDie()
+	cfg.Paused = disable
+	saveConfig(cfg)
+	if disable {
+		fmt.Println("Auto-login paused (master switch off).")
+		return
+	}
+	fmt.Println("Auto-login enabled.")
+}
+
+func runUpdateCreds(args []string) {
+	var user, pass, name string
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--user":
+			i++
+			if i < len(args) {
+				user = args[i]
+			}
+		case "--pass":
+			i++
+			if i < len(args) {
+				pass = args[i]
+			}
+		case "--name":
+			i++
+			if i < len(args) {
+				name = args[i]
+			}
+		}
+	}
+	if user == "" || pass == "" {
+		fmt.Fprintln(os.Stderr, "usage: captive-bypass update-creds --user SRN --pass PASSWORD [--name NAME]")
+		os.Exit(2)
+	}
+	cfg := loadConfigOrDie()
+	must(cfg.SetCredSet(fingerprint(), name, user, pass), "store credentials")
+	saveConfig(cfg)
+	fmt.Printf("Credential set %q stored.\n", name)
+}
+
+func runSetNetwork(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: captive-bypass set-network SSID [SSID...]")
+		os.Exit(2)
+	}
+	cfg := loadConfigOrDie()
+	cfg.SSIDs = args
+	saveConfig(cfg)
+	fmt.Printf("Registered networks: %s\n", strings.Join(args, ", "))
+}
+
+func fingerprint() []byte {
+	fp, err := config.MachineFingerprint()
+	must(err, "machine fingerprint")
+	return fp
 }
 
 func must(err error, what string) {
@@ -170,9 +299,4 @@ func runEvent(args []string) {
 
 func usage() {
 	fmt.Print(usageText)
-}
-
-func notImplemented(cmd string) {
-	fmt.Fprintf(os.Stderr, "captive-bypass: %s: not yet implemented\n", cmd)
-	os.Exit(1)
 }

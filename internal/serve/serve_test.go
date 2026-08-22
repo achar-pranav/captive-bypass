@@ -54,7 +54,7 @@ func newTestServer(t *testing.T) (*Server, *fakePortal, *fakeWifi, *[]string) {
 	}
 	cfg := config.Default()
 	cfg.SSIDs = []string{"Campus"}
-	if err := cfg.SetCreds(fp, "1BI22CS123", "pw"); err != nil {
+	if err := cfg.SetCredSet(fp, "default", "1BI22CS123", "pw"); err != nil {
 		t.Fatalf("SetCreds: %v", err)
 	}
 	cfgPath := filepath.Join(dir, "config.json")

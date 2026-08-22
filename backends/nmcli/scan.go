@@ -70,3 +70,5 @@ func splitLines(out string) []string {
 	}
 	return lines
 }
+
+func ParseScan(out string) []backends.AP { return parseScan(out) }

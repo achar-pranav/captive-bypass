@@ -105,15 +105,26 @@ Alternatives considered and rejected:
   ignored entirely — Up() means an SSID/BSSID line was present. Fixtures cover
   en/de/fr/es plus colons inside SSIDs.
 
-## serve event plumbing (root hook -> user daemon)
-- **State:** Unix socket in the config dir (0700). The root NM dispatcher hook
-  is a ~3-line curl one-liner against it; `serve` owns notifications, cooldowns,
-  state writes. GUI (#9) reuses the same channel for control later.
-- **Alternatives rejected:** per-event binary launch (bash's trick) — no
-  persistent process to notify from or for the GUI to talk to, contradicts
-  "serve runs as a plain user service"; event-file dropbox + inotify — most
-  code (watching, cleanup) with no advantage; D-Bus — heavy dependency for one
-  signal.
+## Event plumbing v2: kernel netlink watcher (dispatcher retired)
+- **State (2026-08-23):** `internal/watcher` subscribes to rtnetlink
+  (LINK + IPv4 ifaddr/route groups) as an unprivileged user. Any burst ->
+  800 ms debounce (`CAPTIVE_DEBOUNCE_MS` to tune on campus) -> one state read
+  via `backends/iw` (`iw dev <if> link` + `/sys/class/net`) -> classified
+  connect vs disconnect -> the same serve handlers the old hook fed. The Unix
+  socket stays for GUI control, Windows listener, and manual pokes. Verified
+  live: down -> best-effort logout; assoc+DHCP -> settle -> livecheck -> login.
+- **Why:** works under ANY manager (NM/iwd/wpa_supplicant/none) because it
+  listens below them all; zero privileges ever (installer needs no pkexec at
+  all now); one event source instead of per-manager hooks. Old hook retired to
+  `attic/dispatcher-hook.sh`, not deleted.
+- **Alternatives rejected:** keeping NM dispatcher + adding iwd D-Bus +
+  wpa_cli action scripts (three code paths, forever); universal poller timer —
+  kernel push is free and instant, heartbeat only if field testing shows missed
+  transitions; manager-specific backends per distro family — unmaintainable.
+- **Known tradeoffs:** no pre-down moment (roam pre-logout stays #11 scope);
+  route blips (VPNs) trigger harmless re-checks — cooldowns + silent
+  already-online-within-cooldown keep it quiet; `iw` must exist (installer
+  checks at Enable time with an actionable error).
 
 ## SSID picking UI (#31)
 - **State:** networks are picked from a live scan as checkboxes; toggling
@@ -132,18 +143,28 @@ Alternatives considered and rejected:
   out of package `backends` into `backends/auto` (import cycle: drivers import
   `backends` for `AP`, so nothing in `backends` may import drivers).
 
-## Watcher install/uninstall
-- **Linux:** systemd **user** service for `serve` (no root, autostart at login,
-  Restart=on-failure) + NM dispatcher hook installed by a single `pkexec`
-  (GUI pops the auth dialog; hook is generated with the user's socket path
-  baked in and only ever curls — it never parses nmcli, never touches creds).
-- **Alternatives rejected:** running `serve` itself as a root dispatcher child
-  (bash's model — creds exposed to root-spawned processes, no session bus for
-  notifications); polkit rule to let the binary self-install without prompt
-  (wider attack surface than one explicit pkexec); sudoers line (needs editor
-  dance, same surface).
+## Watcher install/uninstall (v2: zero prompts)
+- **Linux:** systemd **user** unit only — write file, daemon-reload, enable.
+  No pkexec anywhere in the product anymore; install/uninstall never asks for
+  a password (dev requirement: trust = zero auth dialogs). Installer verifies
+  `iw` exists before writing anything.
 - **Windows:** two per-user scheduled tasks at logon (`serve`, `watch`),
   `/RL LIMITED` so zero admin; AF_UNIX socket works unmodified on Win10+.
+- **History:** the earlier design used one explicit pkexec to drop an NM
+  dispatcher hook — kept working until netlink made it unnecessary.
+
+## Credential sets + GUI direction (this pass)
+- **Model:** multiple named cred sets ({name, SRN, scrypt/AES-GCM ciphertext
+  keyed by machine fingerprint}); exactly ONE active set decides what any
+  login uses. Legacy single-cred configs migrate into a set named `default`
+  on load. SSIDs stay a flat recognized-list — they gate WHEN to log in, the
+  active set decides WITH WHAT; unregistered SSIDs are inert by design.
+- **Master switch:** `paused` config flag presented in GUI as "Auto Login"
+  master toggle (off overrides everything). `Vanguard` bool added as a
+  placeholder toggle only — no behavior wired this pass.
+- **Look:** Discord-style cards on true black (#000) with electric blue
+  (#00A8FF) accents via a custom fyne theme override; compact window meant to
+  be opened once, configured, closed.
 
 ## ELI5 glossary
 | Term | Plain meaning |

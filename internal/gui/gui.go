@@ -15,7 +15,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/achar-pranav/captive-bypass/backends"
-	"github.com/achar-pranav/captive-bypass/backends/nmcli"
+	"github.com/achar-pranav/captive-bypass/backends/auto"
 	"github.com/achar-pranav/captive-bypass/internal/config"
 	"github.com/achar-pranav/captive-bypass/internal/install"
 	"github.com/achar-pranav/captive-bypass/internal/portal"
@@ -42,17 +42,18 @@ func Run() error {
 	if err != nil && err != config.ErrNoConfig {
 		return err
 	}
-	firstRun := err == config.ErrNoConfig || len(cfg.Creds.Ciphertext) == 0
+	firstRun := len(cfg.CredSets) == 0
 
 	u := &ui{
 		a:      app.NewWithID("io.github.achar-pranav.captive-bypass"),
 		cfg:    cfg,
 		cfgDir: dir,
 		portal: portal.New(cfg.Portal, nil),
-		wifi:   nmcli.New(),
+		wifi:   auto.Default(),
 	}
+	u.a.Settings().SetTheme(newAmoledTheme())
 	u.w = u.a.NewWindow("captive-bypass")
-	u.w.Resize(fyne.NewSize(520, 480))
+	u.w.Resize(fyne.NewSize(380, 620))
 	if firstRun {
 		u.showWizard()
 	} else {
@@ -72,6 +73,8 @@ func (u *ui) toast(msg string) {
 	dialog.NewInformation("captive-bypass", msg, u.w).Show()
 }
 
+// ---------- main window ----------
+
 func (u *ui) showMain() {
 	u.status = widget.NewLabel("Checking status…")
 	u.log = widget.NewMultiLineEntry()
@@ -79,15 +82,106 @@ func (u *ui) showMain() {
 
 	signIn := widget.NewButton("Sign in", u.doSignIn)
 	signOut := widget.NewButton("Sign out", u.doSignOut)
-	pause := widget.NewCheck("Paused — manual portal use", func(on bool) {
-		u.cfg.Paused = on
+
+	credsCard := u.cardCredentials()
+	netsCard := u.cardNetworks()
+	behaviorCard := u.cardBehavior()
+	watcherCard := u.cardWatcher()
+
+	body := container.NewVBox(
+		container.NewHBox(u.status, signIn, signOut),
+		credsCard,
+		netsCard,
+		behaviorCard,
+		watcherCard,
+		widget.NewLabel("Activity"),
+		u.log,
+	)
+	u.w.SetContent(container.NewBorder(nil, nil, nil, nil, container.NewScroll(body)))
+
+	go u.refreshStatusLoop()
+	go u.refreshLogLoop()
+}
+
+func sectionTitle(s string) fyne.CanvasObject {
+	l := widget.NewLabel(s)
+	l.TextStyle = fyne.TextStyle{Bold: true}
+	return l
+}
+
+func (u *ui) cardCredentials() fyne.CanvasObject {
+	names := []string{}
+	for _, cs := range u.cfg.CredSets {
+		names = append(names, cs.Name)
+	}
+	radio := widget.NewRadioGroup(names, func(chosen string) {
+		if chosen == "" {
+			return
+		}
+		if err := u.cfg.SetActiveSet(chosen); err != nil {
+			u.toast(err.Error())
+			return
+		}
 		u.saveConfig()
 	})
-	pause.SetChecked(u.cfg.Paused)
+	radio.SetSelected(u.cfg.ActiveSet)
 
-	ssidsBtn := widget.NewButton("Manage SSIDs", u.showSSIDEditor)
-	credsBtn := widget.NewButton("Change credentials", u.showCredsDialog)
-	installLabel := widget.NewLabel("Background watcher:")
+	addBtn := widget.NewButton("Add / update", u.showCredsDialog)
+	delBtn := widget.NewButton("Delete", func() {
+		if u.cfg.ActiveSet == "" || radio.Selected == "" {
+			u.toast("Pick a set to delete")
+			return
+		}
+		if err := u.cfg.DeleteCredSet(radio.Selected); err != nil {
+			u.toast(err.Error())
+			return
+		}
+		u.saveConfig()
+		u.toast("Deleted " + radio.Selected)
+		u.showMain()
+	})
+	hint := widget.NewLabel("The highlighted set is used for sign-in.")
+	hint.TextStyle = fyne.TextStyle{Italic: true}
+
+	body := container.NewVBox(sectionTitle("Credential sets"), radio, hint,
+		container.NewHBox(addBtn, delBtn))
+	if len(names) == 0 {
+		body = container.NewVBox(sectionTitle("Credential sets"),
+			widget.NewLabel("None yet — add one so sign-in has something to use."),
+			addBtn)
+	}
+	return widget.NewCard("", "", body)
+}
+
+func (u *ui) cardNetworks() fyne.CanvasObject {
+	list := container.NewVBox()
+	for _, s := range u.cfg.SSIDs {
+		list.Add(container.NewHBox(widget.NewLabel("•  " + s)))
+	}
+	if len(u.cfg.SSIDs) == 0 {
+		list.Add(widget.NewLabel("None registered yet."))
+	}
+	manageBtn := widget.NewButton("Manage SSIDs", func() { u.showSSIDEditor() })
+	body := container.NewVBox(sectionTitle("Recognized networks"), list, manageBtn)
+	return widget.NewCard("", "", body)
+}
+
+func (u *ui) cardBehavior() fyne.CanvasObject {
+	autoLogin := widget.NewCheck("Auto Login (master switch)", func(on bool) {
+		u.cfg.Paused = !on
+		u.saveConfig()
+	})
+	autoLogin.SetChecked(!u.cfg.Paused)
+	vanguard := widget.NewCheck("Vanguard (experimental)", func(on bool) {
+		u.cfg.Vanguard = on
+		u.saveConfig()
+	})
+	vanguard.SetChecked(u.cfg.Vanguard)
+	body := container.NewVBox(sectionTitle("Behavior"), autoLogin, vanguard)
+	return widget.NewCard("", "", body)
+}
+
+func (u *ui) cardWatcher() fyne.CanvasObject {
 	watcherStatus := widget.NewLabel("")
 	enableBtn := widget.NewButton("Enable", func() {
 		go func() {
@@ -96,7 +190,7 @@ func (u *ui) showMain() {
 			if err != nil {
 				msg = "Enable failed: " + err.Error()
 			}
-			fyne.Do(func() { u.toast(msg); watcherStatus.Refresh() })
+			fyne.Do(func() { u.toast(msg) })
 		}()
 	})
 	disableBtn := widget.NewButton("Disable", func() {
@@ -106,35 +200,25 @@ func (u *ui) showMain() {
 			if err != nil {
 				msg = "Disable failed: " + err.Error()
 			}
-			fyne.Do(func() { u.toast(msg); watcherStatus.Refresh() })
+			fyne.Do(func() { u.toast(msg) })
 		}()
 	})
 	go func() {
-		for {
+		for i := 0; ; i++ {
 			on, _ := install.Status()
 			txt := "not installed"
 			if on {
 				txt = "installed"
 			}
-			fyne.Do(func() { watcherStatus.SetText(txt) })
+			snapshot := txt
+			fyne.Do(func() { watcherStatus.SetText(snapshot) })
 			time.Sleep(5 * time.Second)
+			_ = i
 		}
 	}()
-
-	top := container.NewVBox(
-		u.status,
-		container.NewHBox(signIn, signOut, pause),
-		widget.NewLabelWithStyle("Registered SSIDs: "+fmt.Sprint(len(u.cfg.SSIDs)), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		container.NewHBox(ssidsBtn, credsBtn),
-		widget.NewSeparator(),
-		container.NewHBox(installLabel, watcherStatus, enableBtn, disableBtn),
-		widget.NewSeparator(),
-		widget.NewLabel("Activity"),
-	)
-	u.w.SetContent(container.NewBorder(top, nil, nil, nil, u.log))
-
-	go u.refreshStatusLoop()
-	go u.refreshLogLoop()
+	body := container.NewVBox(sectionTitle("Background watcher"),
+		container.NewHBox(watcherStatus, enableBtn, disableBtn))
+	return widget.NewCard("", "", body)
 }
 
 func (u *ui) refreshStatusLoop() {
@@ -157,7 +241,7 @@ func (u *ui) statusText() string {
 	}
 	line := fmt.Sprintf("WiFi: %s — portal %s", ssid, state)
 	if u.cfg.Paused {
-		line += " (paused)"
+		line += " (auto-login off)"
 	}
 	return line
 }
@@ -187,7 +271,7 @@ func (u *ui) creds() (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	return u.cfg.GetCreds(fp)
+	return u.cfg.GetActiveCreds(fp)
 }
 
 func (u *ui) doSignIn() {

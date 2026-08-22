@@ -1,8 +1,6 @@
 package gui
 
 import (
-	"strings"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
@@ -11,8 +9,17 @@ import (
 	"github.com/achar-pranav/captive-bypass/internal/config"
 )
 
-func cleanSSID(s string) string {
-	return strings.TrimSpace(s)
+func (u *ui) toggleSSID(name string, on bool) {
+	if on {
+		for _, s := range u.cfg.SSIDs {
+			if s == name {
+				return
+			}
+		}
+		u.cfg.SSIDs = append(u.cfg.SSIDs, name)
+		return
+	}
+	u.cfg.SSIDs = removeSSID(u.cfg.SSIDs, name)
 }
 
 func (u *ui) showWizard() {
@@ -20,43 +27,12 @@ func (u *ui) showWizard() {
 	user.SetPlaceHolder("SRN (portal username)")
 	pass := widget.NewPasswordEntry()
 	pass.SetPlaceHolder("Password")
-	ssid := widget.NewEntry()
-	ssid.SetPlaceHolder("e.g. ELEMENT BLOCK")
 
-	list := container.NewVBox()
-	var render func()
-	render = func() {
-		list.Objects = nil
-		for _, s := range u.cfg.SSIDs {
-			name := s
-			list.Add(container.NewHBox(widget.NewLabel(name), widget.NewButton("Remove", func() {
-				u.cfg.SSIDs = removeSSID(u.cfg.SSIDs, name)
-				render()
-			})))
-		}
-		list.Refresh()
-	}
-	addBtn := widget.NewButton("Add SSID", func() {
-		name := cleanSSID(ssid.Text)
-		if name == "" {
-			u.toast("Type a WiFi network name first")
-			return
-		}
-		for _, s := range u.cfg.SSIDs {
-			if s == name {
-				ssid.SetText("")
-				return
-			}
-		}
-		u.cfg.SSIDs = append(u.cfg.SSIDs, name)
-		ssid.SetText("")
-		render()
-	})
-	render()
+	picker := newSSIDPicker(u.wifi, ssidSet(u.cfg.SSIDs), u.toggleSSID)
 
 	save := widget.NewButton("Save and finish", func() {
 		if user.Text == "" || pass.Text == "" || len(u.cfg.SSIDs) == 0 {
-			u.toast("Fill in SRN, password, and at least one SSID")
+			u.toast("Fill in SRN, password, and tick at least one network")
 			return
 		}
 		fp, err := config.MachineFingerprint()
@@ -72,76 +48,39 @@ func (u *ui) showWizard() {
 		u.showMain()
 	})
 
-	root := container.NewVBox(
+	root := container.NewBorder(nil, save, nil, nil, container.NewVBox(
 		widget.NewLabelWithStyle("Welcome — set up captive-bypass", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		widget.NewForm(
 			widget.NewFormItem("Portal username", user),
 			widget.NewFormItem("Portal password", pass),
 		),
-		container.NewHBox(ssid, addBtn),
-		list,
-		save,
-	)
+		picker,
+	))
 	u.w.SetContent(root)
-	baseRender := render
-	render = func() {
-		baseRender()
-		root.Refresh()
-	}
 }
 
 func (u *ui) showSSIDEditor() {
-	entry := widget.NewEntry()
-	entry.SetPlaceHolder("SSID to add")
-	list := container.NewVBox()
-	var render func()
-	render = func() {
-		list.Objects = nil
-		for _, s := range u.cfg.SSIDs {
-			name := s
-			list.Add(container.NewHBox(widget.NewLabel(name), widget.NewButton("Remove", func() {
-				u.cfg.SSIDs = removeSSID(u.cfg.SSIDs, name)
-				u.saveConfig()
-				render()
-			})))
-		}
-		list.Refresh()
-	}
-	doAdd := func() {
-		name := cleanSSID(entry.Text)
-		if name == "" {
-			u.toast("Type a WiFi network name first")
-			return
-		}
-		for _, s := range u.cfg.SSIDs {
-			if s == name {
-				entry.SetText("")
-				return
-			}
-		}
-		u.cfg.SSIDs = append(u.cfg.SSIDs, name)
+	picker := newSSIDPicker(u.wifi, ssidSet(u.cfg.SSIDs), func(ssid string, on bool) {
+		u.toggleSSID(ssid, on)
 		u.saveConfig()
-		entry.SetText("")
-		render()
-	}
-	addBtn := widget.NewButton("Add", doAdd)
-	entry.OnSubmitted = func(string) { doAdd() }
-	render()
-	content := container.NewVBox(
-		entry,
-		addBtn,
-		container.NewScroll(list),
-	)
-	d := dialog.NewCustom("Registered SSIDs", "Done", content, u.w)
-	d.Resize(fyne.NewSize(400, 360))
+	})
+	d := dialog.NewCustom("Registered SSIDs", "Done", picker, u.w)
+	d.Resize(fyne.NewSize(420, 420))
 	d.Show()
+}
+
+func ssidSet(ssids []string) map[string]bool {
+	m := make(map[string]bool, len(ssids))
+	for _, s := range ssids {
+		m[s] = true
+	}
+	return m
 }
 
 func (u *ui) showCredsDialog() {
 	user := widget.NewEntry()
 	pass := widget.NewPasswordEntry()
-	existingUser := u.cfg.Creds.Username
-	user.SetText(existingUser)
+	user.SetText(u.cfg.Creds.Username)
 	form := dialog.NewForm("Change credentials", "Save", "Cancel", []*widget.FormItem{
 		widget.NewFormItem("Username", user),
 		widget.NewFormItem("New password", pass),

@@ -5,6 +5,8 @@ package windows
 import (
 	"fmt"
 	"os/exec"
+
+	"github.com/achar-pranav/captive-bypass/backends"
 )
 
 type Backend struct{}
@@ -37,4 +39,12 @@ func (b *Backend) Signal() (int, error) {
 func (b *Backend) Up() (bool, error) {
 	s, err := b.snapshot()
 	return s.Up, err
+}
+
+func (b *Backend) Scan() ([]backends.AP, error) {
+	out, err := exec.Command("netsh", "wlan", "show", "networks", "mode=bssid").Output()
+	if err != nil {
+		return nil, fmt.Errorf("netsh wlan show networks: %w", err)
+	}
+	return parseNetworks(string(out)), nil
 }

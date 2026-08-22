@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/achar-pranav/captive-bypass/backends"
 	"github.com/achar-pranav/captive-bypass/backends/nmcli"
 	"github.com/achar-pranav/captive-bypass/internal/config"
 	"github.com/achar-pranav/captive-bypass/internal/install"
@@ -26,7 +27,7 @@ type ui struct {
 	cfg    *config.Config
 	cfgDir string
 	portal *portal.Client
-	wifi   *nmcli.Backend
+	wifi   backends.Backend
 	log    *widget.Entry
 	status *widget.Label
 }

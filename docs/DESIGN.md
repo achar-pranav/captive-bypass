@@ -115,6 +115,23 @@ Alternatives considered and rejected:
   code (watching, cleanup) with no advantage; D-Bus — heavy dependency for one
   signal.
 
+## SSID picking UI (#31)
+- **State:** networks are picked from a live scan as checkboxes; toggling
+  edits the registered set directly. Typed entry removed entirely — campus
+  SSIDs always broadcast (dev call).
+- **Alternatives rejected:** type-them-manually (original wizard) — typos
+  silently break roaming detection, the exact bug class this tool exists to
+  kill; checkbox list + separate Apply button — two-step ritual for no safety
+  gain since changes are reversible by unchecking; multi-select list widget —
+  same as checkboxes but with worse touch targets.
+- **Fyne gotcha (for future us):** a bare `container.NewScroll` collapses to a
+  32px min inside VBox layouts and rows vanish again (#9 regression class).
+  Scroll must sit in a `Border` center slot to absorb leftover height.
+- **Backend note:** scan lives on the `backends.Backend` interface (`Scan()`)
+  so GUI stays OS-agnostic; the shared `AP` type forced the `Default()` factory
+  out of package `backends` into `backends/auto` (import cycle: drivers import
+  `backends` for `AP`, so nothing in `backends` may import drivers).
+
 ## Watcher install/uninstall
 - **Linux:** systemd **user** service for `serve` (no root, autostart at login,
   Restart=on-failure) + NM dispatcher hook installed by a single `pkexec`

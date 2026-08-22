@@ -3,6 +3,7 @@ package serve
 import (
 	"bufio"
 	"context"
+	"github.com/achar-pranav/captive-bypass/backends"
 	"net"
 	"path/filepath"
 	"strings"
@@ -266,3 +267,5 @@ func TestSocketRoundTrip(t *testing.T) {
 		t.Fatal("Run did not exit after cancel")
 	}
 }
+
+func (f *fakeWifi) Scan() ([]backends.AP, error) { return nil, nil }

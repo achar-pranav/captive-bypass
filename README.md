@@ -2,7 +2,7 @@
 
 Auto-login for the PESU **Sophos/Cyberoam** captive portal (`rr.pes.edu:8090`), so you never have to open a browser on the ELEMENT BLOCK WiFi.
 
-**Status:** the tool is being rewritten as a **Go binary** (CLI + Fyne GUI) targeting Linux, Windows, and macOS. The plan lives in the GitHub issues. The original bash tool is archived at `attic/captive-bypass` and used only as a protocol reference.
+**Status:** Linux is working end-to-end (verified live): kernel-event watcher → auto login/logout, zero privilege prompts. Windows backend is written, awaiting a real machine to test. macOS is planned (#23). The plan lives in the GitHub issues; the original bash tool is archived at `attic/captive-bypass` (protocol reference only).
 
 **For agents/AI sessions:** read `AGENTS.md` first (auto-loaded); design context and the ELI5 glossary live in `docs/DESIGN.md`; tasks are tracked as GitHub issues.
 
@@ -24,9 +24,48 @@ mode=191&username=<SRN>&password=<PASSWORD>&a=<epoch-ms>&producttype=0
 - Success = response body contains `<status><![CDATA[LIVE]]></status>`.
 - Failure = `<status><![CDATA[LOGIN]]></status>` with a reason in `<message>`.
 
+## Install & use (Linux)
+
+```
+go build -o captive-bypass ./cmd/captive-bypass
+./captive-bypass --install      # systemd user unit; no password prompts, ever
+./captive-bypass gui            # first-run wizard: cred set + SSID picker
+```
+
+CLI mirrors the old bash tool's verbs:
+
+| verb | what it does |
+|---|---|
+| `login` / `logout` | portal login (best-effort logout first) / logout |
+| `enable` / `disable` | master auto-login switch |
+| `update-creds --user SRN --pass PW [--name N]` | add/update a named credential set |
+| `set-network SSID...` | register SSIDs that trigger login |
+| `serve` | run the watcher daemon (the unit runs this) |
+| `gui` | control panel |
+| `dev wipe` / `reset-state` / `clear-vanguard` / `force` | tester helpers |
+
+## How auto-login works
+
+`serve` subscribes to **kernel netlink events** (link/address/route) as your
+plain user — it listens below any WiFi manager, so NetworkManager, iwd,
+wpa_supplicant or none all look identical. Events are debounced (~0.8 s), the
+connection state is read via `iw`, and if the SSID is one you registered and
+you're not already online, it logs in; on disconnect it best-efforts a logout
+so roaming doesn't hit the portal's session limit. No heartbeat, no root.
+
+## Config
+
+Everything lives in `~/.config/captive-bypass/`: encrypted credential sets +
+which is active (`config.json`), recognized SSIDs, session state, log.
+Credentials are AES-GCM-encrypted with a machine-derived key — they never
+leave the device except in the portal's own login POST (which the protocol
+sends plaintext; see above).
+
 ## Backends
 
-The design is **backend-tiered**: WiFi managers (nmcli first, then iwd/wpa_supplicant) and OSes (Linux, then Windows/macOS) are additional backends rather than forks — the portal logic is transport-agnostic.
+The design is backend-tiered: the kernel watcher + `iw` state reader cover all
+Linux managers; Windows uses its WLAN notification API; macOS will use
+CoreWLAN (#23). The portal logic is transport-agnostic.
 
 ## References
 

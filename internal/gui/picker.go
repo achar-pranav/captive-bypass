@@ -70,8 +70,10 @@ func (p *ssidPicker) renderRows(aps []backends.AP) {
 		c := widget.NewCheck("", nil)
 		c.SetChecked(p.hooks.checked(ap.SSID))
 		c.OnChanged = func(on bool) { p.hooks.onRow(ap.SSID, on) }
+		label := widget.NewLabel(ap.SSID)
+		label.Truncation = fyne.TextTruncateEllipsis
 		row := container.NewBorder(nil, nil,
-			container.NewHBox(signalBars(ap.Signal), widget.NewLabel(ap.SSID)),
+			container.NewHBox(signalBars(ap.Signal), label),
 			c,
 		)
 		p.list.Add(row)

@@ -86,15 +86,19 @@ func (u *ui) showWizard() {
 		u.showMain()
 	})
 
-	root := container.NewBorder(nil, save, nil, nil, container.NewVBox(
-		widget.NewLabelWithStyle("Welcome — set up captive-bypass", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewForm(
-			widget.NewFormItem("Set name", name),
-			widget.NewFormItem("Portal username", user),
-			widget.NewFormItem("Portal password", pass),
+	root := container.NewBorder(
+		container.NewVBox(
+			widget.NewLabelWithStyle("Welcome — set up captive-bypass", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			widget.NewForm(
+				widget.NewFormItem("Set name", name),
+				widget.NewFormItem("Portal username", user),
+				widget.NewFormItem("Portal password", pass),
+			),
 		),
+		save,
+		nil, nil,
 		picker.root,
-	))
+	)
 	u.w.SetContent(root)
 }
 

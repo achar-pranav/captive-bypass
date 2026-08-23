@@ -182,6 +182,10 @@ func TestConnectRejected(t *testing.T) {
 
 func TestDisconnectLogsOut(t *testing.T) {
 	s, p, _, _ := newTestServer(t)
+	// Set up a recent login state so disconnect attempts logout
+	s.mu.Lock()
+	s.lastSuccessfulLogin = time.Now()
+	s.mu.Unlock()
 	reply := s.Handle(context.Background(), "disconnect")
 	if reply != "ok logged-out" {
 		t.Fatalf("reply = %q, want ok logged-out", reply)

@@ -22,14 +22,15 @@ import (
 )
 
 type ui struct {
-	a      fyne.App
-	w      fyne.Window
-	cfg    *config.Config
-	cfgDir string
-	portal *portal.Client
-	wifi   backends.Backend
-	log    *widget.Entry
-	status *widget.Label
+	a            fyne.App
+	w            fyne.Window
+	cfg          *config.Config
+	cfgDir       string
+	portal       *portal.Client
+	wifi         backends.Backend
+	log          *widget.Entry
+	status       *widget.Label
+	refreshCancel context.CancelFunc
 }
 
 func Run() error {
@@ -79,28 +80,34 @@ func (u *ui) showMain() {
 	u.status = widget.NewLabel("Checking status…")
 	u.log = widget.NewMultiLineEntry()
 	u.log.Disable()
-
-	signIn := widget.NewButton("Sign in", u.doSignIn)
-	signOut := widget.NewButton("Sign out", u.doSignOut)
+	u.log.Wrapping = fyne.TextWrapBreak
+	u.log.TextStyle = fyne.TextStyle{Monospace: true}
 
 	credsCard := u.cardCredentials()
 	netsCard := u.cardNetworks()
 	behaviorCard := u.cardBehavior()
 	watcherCard := u.cardWatcher()
 
+	activityBox := container.NewVScroll(u.log)
+	activityBox.SetMinSize(fyne.NewSize(0, 160))
+	activityCard := widget.NewCard("", "Activity", activityBox)
+
 	body := container.NewVBox(
-		container.NewHBox(u.status, signIn, signOut),
+		u.status,
 		credsCard,
 		netsCard,
 		behaviorCard,
 		watcherCard,
-		widget.NewLabel("Activity"),
-		u.log,
 	)
-	u.w.SetContent(container.NewBorder(nil, nil, nil, nil, container.NewScroll(body)))
+	u.w.SetContent(container.NewBorder(nil, activityCard, nil, nil, container.NewScroll(body)))
 
-	go u.refreshStatusLoop()
-	go u.refreshLogLoop()
+	if u.refreshCancel != nil {
+		u.refreshCancel()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	u.refreshCancel = cancel
+	go u.refreshStatusLoop(ctx)
+	go u.refreshLogLoop(ctx)
 }
 
 func sectionTitle(s string) fyne.CanvasObject {
@@ -167,26 +174,32 @@ func (u *ui) cardNetworks() fyne.CanvasObject {
 }
 
 func (u *ui) cardBehavior() fyne.CanvasObject {
-	autoLogin := widget.NewCheck("Auto Login (master switch)", func(on bool) {
-		u.cfg.Paused = !on
+	autoLoginBtn := widget.NewButton("", nil)
+	autoLoginBtn.OnTapped = func() {
+		u.cfg.Paused = !u.cfg.Paused
 		u.saveConfig()
-	})
-	autoLogin.SetChecked(!u.cfg.Paused)
-	vanguard := widget.NewCheck("Vanguard (experimental)", func(on bool) {
-		u.cfg.Vanguard = on
+		autoLoginBtn.SetText(map[bool]string{true: "Auto Login: ON", false: "Auto Login: OFF"}[!u.cfg.Paused])
+	}
+	autoLoginBtn.SetText(map[bool]string{true: "Auto Login: ON", false: "Auto Login: OFF"}[!u.cfg.Paused])
+
+	vanguardBtn := widget.NewButton("", nil)
+	vanguardBtn.OnTapped = func() {
+		u.cfg.Vanguard = !u.cfg.Vanguard
 		u.saveConfig()
-	})
-	vanguard.SetChecked(u.cfg.Vanguard)
-	body := container.NewVBox(sectionTitle("Behavior"), autoLogin, vanguard)
+		vanguardBtn.SetText(map[bool]string{true: "Vanguard: ON", false: "Vanguard: OFF"}[u.cfg.Vanguard])
+	}
+	vanguardBtn.SetText(map[bool]string{true: "Vanguard: ON", false: "Vanguard: OFF"}[u.cfg.Vanguard])
+
+	body := container.NewVBox(sectionTitle("Behavior"), autoLoginBtn, vanguardBtn)
 	return widget.NewCard("", "", body)
 }
 
 func (u *ui) cardWatcher() fyne.CanvasObject {
-	watcherStatus := widget.NewLabel("")
+	watcherStatus := widget.NewLabel("checking…")
 	enableBtn := widget.NewButton("Enable", func() {
 		go func() {
 			err := install.Enable()
-			msg := "Watcher enabled — auto sign-in/out active"
+			msg := "Auto-start enabled — sign-in/out runs in background"
 			if err != nil {
 				msg = "Enable failed: " + err.Error()
 			}
@@ -196,7 +209,7 @@ func (u *ui) cardWatcher() fyne.CanvasObject {
 	disableBtn := widget.NewButton("Disable", func() {
 		go func() {
 			err := install.Disable()
-			msg := "Watcher disabled"
+			msg := "Auto-start disabled"
 			if err != nil {
 				msg = "Disable failed: " + err.Error()
 			}
@@ -204,28 +217,51 @@ func (u *ui) cardWatcher() fyne.CanvasObject {
 		}()
 	})
 	go func() {
-		for i := 0; ; i++ {
+		for {
 			on, _ := install.Status()
-			txt := "not installed"
+			txt := "off"
 			if on {
-				txt = "installed"
+				txt = "on"
 			}
-			snapshot := txt
-			fyne.Do(func() { watcherStatus.SetText(snapshot) })
+			if watcherStatus.Text != txt {
+				fyne.Do(func() { watcherStatus.SetText(txt) })
+			}
 			time.Sleep(5 * time.Second)
-			_ = i
 		}
 	}()
-	body := container.NewVBox(sectionTitle("Background watcher"),
-		container.NewHBox(watcherStatus, enableBtn, disableBtn))
+	body := container.NewVBox(
+		sectionTitle("Run automatically at login"),
+		widget.NewLabel("Installs a small background service so sign-in/out happens without opening this app."),
+		container.NewHBox(watcherStatus, enableBtn, disableBtn),
+	)
 	return widget.NewCard("", "", body)
 }
 
-func (u *ui) refreshStatusLoop() {
+func (u *ui) refreshStatusLoop(ctx context.Context) {
 	for {
-		txt := u.statusText()
-		fyne.Do(func() { u.status.SetText(txt) })
-		time.Sleep(3 * time.Second)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(3 * time.Second):
+			txt := u.statusText()
+			if u.status.Text != txt {
+				fyne.Do(func() { u.status.SetText(txt) })
+			}
+		}
+	}
+}
+
+func (u *ui) refreshLogLoop(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(2 * time.Second):
+			tail := readLogTail(filepath.Join(u.cfgDir, "log"), 40)
+			if u.log.Text != tail {
+				fyne.Do(func() { u.log.SetText(tail) })
+			}
+		}
 	}
 }
 
@@ -244,14 +280,6 @@ func (u *ui) statusText() string {
 		line += " (auto-login off)"
 	}
 	return line
-}
-
-func (u *ui) refreshLogLoop() {
-	for {
-		tail := readLogTail(filepath.Join(u.cfgDir, "log"), 40)
-		fyne.Do(func() { u.log.SetText(tail) })
-		time.Sleep(2 * time.Second)
-	}
 }
 
 func readLogTail(path string, n int) string {

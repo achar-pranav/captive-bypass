@@ -39,5 +39,26 @@ func signalBars(pct int) fyne.CanvasObject {
 	}
 	box := container.NewWithoutLayout(objects...)
 	box.Resize(fyne.NewSize(4*barW+3*gap, baseY))
-	return container.NewPadded(box)
+	wrapped := container.NewPadded(box)
+
+	minSizeObj := fyne.NewContainerWithLayout(
+		&fixedMinSizeLayout{size: fyne.NewSize(22, 20)},
+		wrapped,
+	)
+	return minSizeObj
+}
+
+type fixedMinSizeLayout struct {
+	size fyne.Size
+}
+
+func (l *fixedMinSizeLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	if len(objects) == 0 {
+		return
+	}
+	objects[0].Resize(l.size)
+}
+
+func (l *fixedMinSizeLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	return l.size
 }

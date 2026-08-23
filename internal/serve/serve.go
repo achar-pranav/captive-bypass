@@ -39,8 +39,9 @@ type Server struct {
 	Wifi        backends.Backend
 	Notify      func(msg string)
 
-	mu     sync.Mutex
-	cancel context.CancelFunc
+	mu                  sync.Mutex
+	cancel              context.CancelFunc
+	lastSuccessfulLogin time.Time
 }
 
 func DefaultSocketPath() string {
@@ -200,6 +201,7 @@ func (s *Server) onConnect(ctx context.Context, ssid string) string {
 	case ok:
 		bssid, _ := s.Wifi.ActiveBSSID()
 		saveState(s.StatePath, state.ActionLogin, bssid)
+		s.lastSuccessfulLogin = time.Now()
 		s.Notify(fmt.Sprintf("Signed in on %s", ssid))
 		s.logf("login OK on %s (bssid %s)", ssid, bssid)
 		return "ok logged-in"
@@ -224,6 +226,10 @@ func (s *Server) onDisconnect(ctx context.Context) string {
 	}
 	if st.IsRecent(state.ActionLogout, cfg.Timings.LogoutCooldown) {
 		return "skip logout-cooldown"
+	}
+	recentLogin := time.Since(s.lastSuccessfulLogin) < 10*time.Minute
+	if !recentLogin {
+		return "skip no-recent-login"
 	}
 	username, _, err := s.creds(cfg)
 	if err != nil {

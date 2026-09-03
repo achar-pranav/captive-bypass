@@ -3,11 +3,10 @@
 ## What this is
 A tool that auto-logs into the PESU Sophos/Cyberoam captive portal
 (rr.pes.edu:8090) using stored SRN/password, triggered on campus WiFi connect.
-Current tool: **Go binary**. Linux/NetworkManager (nmcli) is the first wifi
-backend; the old bash script is archived in `attic/` and used only as a
-protocol reference. Design is backend-tiered to cover other WiFi managers and
-OSes (student laptops), so treat OS/manager specifics as swappable backends,
-not permanent facts.
+Current tool: **Go binary** with tiered backends. The old bash script is
+archived in `attic/` and used only as a protocol reference. Design is
+backend-tiered to cover all WiFi managers and OSes (student laptops), so treat
+OS/manager specifics as swappable backends, not permanent facts.
 
 ## Platform priority
 Windows and macOS are first-class until v1 is out — not afterthoughts. Linux is
@@ -29,14 +28,30 @@ session timeout (~3h, unmeasured). MAC randomization per connect is the only
 100% reliable sidestep, but carries policy risk (looks like device churn to IT).
 
 ## Files
-- attic/captive-bypass  archived bash tool (reference only)
-- cmd/, internal/, backends/  the Go tool (current)
-- docs/DESIGN.md     design notes + ELI5 glossary; read ONLY when an issue references it
-- docs/GO-REWRITE.md historical rewrite RFC (superseded by GitHub issues)
-- README.md          install/usage/security
+- `backends/` — Backend interface + implementations:
+  - `nmcli/` — NetworkManager connectivity check + SSID scan
+  - `iw/` — `iw` state reader (SSID, signal, BSSID for watcher)
+  - `windows/` — WLAN API backend (events, listener, netsh parsing)
+  - `auto/` — platform-aware auto-select of the right backend
+- `cmd/captive-bypass/main.go` — CLI entry point
+- `internal/` — core logic:
+  - `config/` — config.json + AES-GCM fingerprint-encrypted cred sets
+  - `state/` — cooldowns, last BSSID, session state
+  - `portal/` — login/logout over HTTPS (mode 191/193)
+  - `serve/` — watcher daemon (unix socket, event-driven)
+  - `watcher/` — kernel netlink event subscriber (Linux)
+  - `gui/` — Fyne setup wizard + control panel
+  - `install/` — systemd user unit install/uninstall
+- `attic/captive-bypass` — archived bash tool (protocol reference only)
+- `attic/dispatcher-hook.sh` — old dispatcher hook (reference only)
+- `docs/`:
+  - `DESIGN.md` — design notes + ELI5 glossary; read ONLY when an issue references it
+  - `GO-REWRITE.md` — historical rewrite RFC (superseded by GitHub issues)
+  - `VANGUARD.md` — experimental data-collection design (low priority)
+- `README.md` — install/usage/security
 
 ## Config (created at runtime)
-- ~/.config/captive-bypass/  creds, network.conf, state, log, disabled
+- `~/.config/captive-bypass/` — `config.json`, cred sets (encrypted), `state.json`, log
 
 ## Workflow contract (how we work)
 - One GitHub issue per task; the issue body is the only briefing needed.
@@ -63,6 +78,8 @@ session timeout (~3h, unmeasured). MAC randomization per connect is the only
   handles syntax. Never make a design/behavior decision on the dev's behalf.
 
 ## Tooling
-- gh, go; current wifi backend is NetworkManager (nmcli).
-- Tiered backends planned: iwd/wpa_supplicant on Linux, then Windows/macOS.
+- `gh`, `go`; `godbus` (Fyne dep), `golang.org/x/sys` (netlink).
+- Linux backends: `nmcli` + `iw` (both read state below the WiFi manager).
+- Windows backend: `netsh` + WLAN notification API.
+- GUI: Fyne v2 (cross-platform).
 - No test suite; verification is manual/empirical.

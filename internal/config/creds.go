@@ -110,6 +110,27 @@ func (c *Config) ActiveUser() (string, error) {
 	return cs.Username, nil
 }
 
+func (c *Config) GetCredsByName(fp []byte, name string) (string, string, error) {
+	for i := range c.CredSets {
+		if c.CredSets[i].Name == name {
+			key, err := deriveKey(fp, c.CredSets[i].Salt)
+		if err != nil {
+			return "", "", err
+		}
+		aead, err := newGCM(key)
+		if err != nil {
+			return "", "", err
+		}
+		pt, err := aead.Open(nil, c.CredSets[i].Nonce, c.CredSets[i].Ciphertext, nil)
+		if err != nil {
+			return "", "", err
+		}
+		return c.CredSets[i].Username, string(pt), nil
+		}
+	}
+	return "", "", ErrUnknownSet
+}
+
 func (c *Config) GetActiveCreds(fp []byte) (string, string, error) {
 	cs := c.findActive()
 	if cs == nil {

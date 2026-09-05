@@ -2,7 +2,7 @@
 
 Auto-login for the PESU **Sophos/Cyberoam** captive portal (`rr.pes.edu:8090`), so you never have to open a browser on the ELEMENT BLOCK WiFi.
 
-**Status:** Linux is working end-to-end (verified live): kernel-event watcher → auto login/logout, zero privilege prompts. Windows backend is written, awaiting a real machine to test. macOS is planned (#23). The plan lives in the GitHub issues; the original bash tool is archived at `attic/captive-bypass` (protocol reference only).
+**Status:** Linux is working end-to-end (verified live): kernel-event watcher → auto login/logout, zero privilege prompts. Windows backend is written, awaiting a real machine to test. macOS CoreWLAN backend implemented (#23). The plan lives in the GitHub issues; the original bash tool is archived at `attic/captive-bypass` (protocol reference only).
 
 **For agents/AI sessions:** read `AGENTS.md` first (auto-loaded); design context and the ELI5 glossary live in `docs/DESIGN.md`; tasks are tracked as GitHub issues.
 
@@ -64,8 +64,7 @@ sends plaintext; see above).
 ## Backends
 
 The design is backend-tiered: the kernel watcher + `iw` state reader cover all
-Linux managers; Windows uses its WLAN notification API; macOS will use
-CoreWLAN (#23). The portal logic is transport-agnostic.
+Linux managers; Windows uses its WLAN notification API; macOS uses CoreWLAN via CGO (#23). The portal logic is transport-agnostic.
 
 ## References
 

@@ -87,6 +87,16 @@ Alternatives considered and rejected:
   more work than a simple control panel needs. Rejected: Fyne is simpler.
 - **Electron**: way too heavy and not Go. Rejected.
 
+## macOS wifi backend decision
+- **State:** `CoreWLAN` framework (`CWWiFiClient`, `CWInterface`) via CGO. Official Apple framework for Wi-Fi management. Gives direct access to SSID, BSSID, RSSI, and power status.
+- **Signal:** CoreWLAN provides native RSSI in dBm directly (`interface.rssiValue`), matching our cross-OS dBm standard.
+- **Events:** CoreWLAN client event delegate (`CWEventDelegate`) or notification center observing `CWClientDidChangeNotification` / SSID / BSSID changes. Clean event-driven architecture, no battery-draining polling.
+- **Alternatives rejected:**
+  - `airport -I` CLI: Deprecated by Apple, hidden deep in private frameworks, no event notifications (would force polling).
+  - `networksetup` CLI: Slow, lacks granular real-time Wi-Fi state (no easy RSSI/BSSID), no events.
+  - `system_profiler SPAirPortDataType`: Takes 1-3 seconds to run; far too slow for real-time connect/disconnect sensing.
+  - Pure Go Mach/XPC reverse engineering: CoreWLAN is an Objective-C framework; calling it via CGO is the robust and supported method on macOS.
+
 ## Windows wifi backend decision
 - **State:** `netsh wlan show interfaces` parsing, mirroring nmcli. Native
   `wlanapi` state calls rejected: more code (buffers/GUIDs/pointers) for no

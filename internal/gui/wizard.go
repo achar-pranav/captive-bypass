@@ -7,7 +7,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
-
 	"github.com/achar-pranav/captive-bypass/internal/config"
 )
 
@@ -53,9 +52,9 @@ func (u *ui) showWizard() {
 	name := widget.NewEntry()
 	name.SetText("default")
 	user := widget.NewEntry()
-	user.SetPlaceHolder("SRN (portal username)")
+	user.SetPlaceHolder("SRN (e.g. PES1UG...)")
 	pass := widget.NewPasswordEntry()
-	pass.SetPlaceHolder("Password")
+	pass.SetPlaceHolder("Portal Password")
 
 	staging := newStaging(u.cfg.SSIDs)
 	picker := newSSIDPicker(u.wifi, pickerHooks{
@@ -63,13 +62,13 @@ func (u *ui) showWizard() {
 		onRow:   staging.toggle,
 	})
 
-	save := widget.NewButton("Save and finish", func() {
+	save := widget.NewButton("Finish Setup & Start Auto-Login", func() {
 		setName := name.Text
 		if setName == "" {
 			setName = "default"
 		}
 		if user.Text == "" || pass.Text == "" || len(staging.order) == 0 {
-			u.toast("Fill in SRN, password, and tick at least one network")
+			u.toast("Please fill in your SRN, password, and select at least one network.")
 			return
 		}
 		fp, err := config.MachineFingerprint()
@@ -85,16 +84,24 @@ func (u *ui) showWizard() {
 		u.saveConfig()
 		u.showMain()
 	})
+	save.Importance = widget.HighImportance
+
+	welcomeTitle := widget.NewLabel("Welcome to captive-bypass")
+	welcomeTitle.TextStyle = fyne.TextStyle{Bold: true}
+	welcomeSubtitle := widget.NewLabel("Enter your PESU credentials and pick your campus Wi-Fi networks.")
+
+	header := container.NewVBox(
+		welcomeTitle,
+		welcomeSubtitle,
+		widget.NewForm(
+			widget.NewFormItem("Profile Name", name),
+			widget.NewFormItem("Username (SRN)", user),
+			widget.NewFormItem("Password", pass),
+		),
+	)
 
 	root := container.NewBorder(
-		container.NewVBox(
-			widget.NewLabelWithStyle("Welcome — set up captive-bypass", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-			widget.NewForm(
-				widget.NewFormItem("Set name", name),
-				widget.NewFormItem("Portal username", user),
-				widget.NewFormItem("Portal password", pass),
-			),
-		),
+		header,
 		save,
 		nil, nil,
 		picker.root,
@@ -110,14 +117,16 @@ func (u *ui) showSSIDEditor() {
 		checked: func(ssid string) bool { return staging.picked[ssid] },
 		onRow:   staging.toggle,
 	})
-	d := dialog.NewCustomConfirm("Registered SSIDs", "OK", "Cancel", picker.root, func(ok bool) {
+
+	d := dialog.NewCustomConfirm("Registered Networks", "Save", "Cancel", picker.root, func(ok bool) {
 		if !ok {
 			return
 		}
 		u.cfg.SSIDs = staging.order
 		u.saveConfig()
+		u.showMain()
 	}, u.w)
-	d.Resize(fyne.NewSize(420, 480))
+	d.Resize(fyne.NewSize(440, 500))
 	d.Show()
 }
 
@@ -125,9 +134,12 @@ func (u *ui) showSSIDEditor() {
 
 func (u *ui) showCredsDialog() {
 	name := widget.NewEntry()
-	name.SetPlaceHolder("set name")
+	name.SetPlaceHolder("Profile name (e.g. personal, lab)")
 	user := widget.NewEntry()
+	user.SetPlaceHolder("SRN")
 	pass := widget.NewPasswordEntry()
+	pass.SetPlaceHolder("Password")
+
 	existing := u.activeSet()
 	if existing != nil {
 		name.SetText(existing.Name)
@@ -135,9 +147,10 @@ func (u *ui) showCredsDialog() {
 	} else if u.cfg.ActiveSet != "" || len(u.cfg.CredSets) > 0 {
 		name.SetText(nextName(u.cfg))
 	}
-	form := dialog.NewForm("Credential set", "Save", "Cancel", []*widget.FormItem{
-		widget.NewFormItem("Set name", name),
-		widget.NewFormItem("Username", user),
+
+	form := dialog.NewForm("Credential Set", "Save", "Cancel", []*widget.FormItem{
+		widget.NewFormItem("Profile Name", name),
+		widget.NewFormItem("Username (SRN)", user),
 		widget.NewFormItem("Password", pass),
 	}, func(ok bool) {
 		if !ok || user.Text == "" || pass.Text == "" {

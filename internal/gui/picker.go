@@ -6,7 +6,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
-
 	"github.com/achar-pranav/captive-bypass/backends"
 )
 
@@ -28,8 +27,8 @@ type ssidPicker struct {
 
 func newSSIDPicker(wifi backends.Backend, hooks pickerHooks) *ssidPicker {
 	p := &ssidPicker{wifi: wifi, hooks: hooks}
-	p.status = widget.NewLabel("Scanning for networks…")
-	p.refresh = widget.NewButton("Refresh", nil)
+	p.status = widget.NewLabel("Scanning for nearby networks…")
+	p.refresh = widget.NewButton("Scan Again", nil)
 	p.list = container.NewVBox()
 	p.refresh.OnTapped = p.load
 	p.root = container.NewBorder(
@@ -42,7 +41,7 @@ func newSSIDPicker(wifi backends.Backend, hooks pickerHooks) *ssidPicker {
 }
 
 func (p *ssidPicker) load() {
-	p.status.SetText("Scanning for networks…")
+	p.status.SetText("Scanning for nearby networks…")
 	p.refresh.Disable()
 	go func() {
 		aps, err := p.wifi.Scan()
@@ -67,14 +66,13 @@ func (p *ssidPicker) renderRows(aps []backends.AP) {
 	p.list.Objects = nil
 	for _, ap := range aps {
 		ap := ap
-		c := widget.NewCheck("", nil)
+		c := widget.NewCheck(ap.SSID, nil)
 		c.SetChecked(p.hooks.checked(ap.SSID))
 		c.OnChanged = func(on bool) { p.hooks.onRow(ap.SSID, on) }
-		label := widget.NewLabel(ap.SSID)
-		label.Truncation = fyne.TextTruncateEllipsis
+
 		row := container.NewBorder(nil, nil,
-			container.NewHBox(signalBars(ap.Signal), label),
 			c,
+			signalBadge(ap.Signal),
 		)
 		p.list.Add(row)
 	}

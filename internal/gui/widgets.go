@@ -1,64 +1,30 @@
 package gui
 
 import (
-	"image/color"
-	"math"
+	"fmt"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/widget"
 )
 
-// signalBars renders a 4-bar wifi strength glyph; pct is 0-100 (RSSI-scaled).
-func signalBars(pct int) fyne.CanvasObject {
+// signalBadge renders a clean, standard text glyph badge representing Wi-Fi strength.
+func signalBadge(pct int) fyne.CanvasObject {
 	if pct < 0 {
 		pct = 0
 	}
 	if pct > 100 {
 		pct = 100
 	}
-	lit := int(math.Ceil(float64(pct) / 25))
-	if lit < 1 {
-		lit = 1
+	bars := "▂▄▆█"
+	switch {
+	case pct < 25:
+		bars = "▂   "
+	case pct < 50:
+		bars = "▂▄  "
+	case pct < 75:
+		bars = "▂▄▆ "
 	}
-	barW, gap, baseY := float32(4), float32(2), float32(20)
-	var objects []fyne.CanvasObject
-	for i := 0; i < 4; i++ {
-		h := float32(5 + i*5)
-		c := canvas.NewRectangle(colTextDim)
-		c.CornerRadius = 1.5
-		if i < lit {
-			c.FillColor = colBlue
-		} else {
-			c.FillColor = color.NRGBA{R: 0x24, G: 0x28, B: 0x2D, A: 0xFF}
-		}
-		x := float32(i) * (barW + gap)
-		c.Move(fyne.NewPos(x, baseY-h))
-		c.Resize(fyne.NewSize(barW, h))
-		objects = append(objects, c)
-	}
-	box := container.NewWithoutLayout(objects...)
-	box.Resize(fyne.NewSize(4*barW+3*gap, baseY))
-	wrapped := container.NewPadded(box)
-
-	minSizeObj := fyne.NewContainerWithLayout(
-		&fixedMinSizeLayout{size: fyne.NewSize(22, 20)},
-		wrapped,
-	)
-	return minSizeObj
-}
-
-type fixedMinSizeLayout struct {
-	size fyne.Size
-}
-
-func (l *fixedMinSizeLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
-	if len(objects) == 0 {
-		return
-	}
-	objects[0].Resize(l.size)
-}
-
-func (l *fixedMinSizeLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
-	return l.size
+	lbl := widget.NewLabel(fmt.Sprintf("%s %d%%", bars, pct))
+	lbl.TextStyle = fyne.TextStyle{Monospace: true}
+	return lbl
 }

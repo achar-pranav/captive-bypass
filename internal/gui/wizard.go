@@ -100,8 +100,7 @@ func (u *ui) showWizardScreen2() {
 	userEntry := widget.NewEntry()
 	userEntry.SetPlaceHolder("PES1UG...")
 
-	passEntry := widget.NewPasswordEntry()
-	passEntry.SetPlaceHolder("Portal Password")
+	passEntry, passRow := newPasswordEntryWithToggle("Portal Password")
 
 	disclaimer := widget.NewLabel(
 		"Passwords are never stored in plaintext. We use OS hardware fingerprinting " +
@@ -109,6 +108,12 @@ func (u *ui) showWizardScreen2() {
 	)
 	disclaimer.TextStyle = fyne.TextStyle{Italic: true}
 	disclaimer.Wrapping = fyne.TextWrapWord
+
+	backBtn := widget.NewButton("Back", func() {
+		u.spam.Run(func() {
+			fyne.Do(u.showWizardScreen1)
+		})
+	})
 
 	// Continue button takes the entire width of the bottom
 	continueBtn := widget.NewButton("Continue", func() {
@@ -144,13 +149,18 @@ func (u *ui) showWizardScreen2() {
 		widget.NewLabel("2. Username"),
 		userEntry,
 		widget.NewLabel("3. Password"),
-		passEntry,
+		passRow,
 		disclaimer,
+	)
+
+	btns := container.NewVBox(
+		backBtn,
+		continueBtn,
 	)
 
 	body := container.NewBorder(
 		title,
-		continueBtn,
+		btns,
 		nil, nil,
 		form,
 	)
@@ -171,6 +181,12 @@ func (u *ui) showWizardScreen3() {
 		onRow:   staging.toggle,
 	})
 
+	backBtn := widget.NewButton("Back", func() {
+		u.spam.Run(func() {
+			fyne.Do(u.showWizardScreen2)
+		})
+	})
+
 	// Done button takes the entire width of the bottom
 	doneBtn := widget.NewButton("Done", func() {
 		u.spam.Run(func() {
@@ -185,9 +201,14 @@ func (u *ui) showWizardScreen3() {
 	})
 	doneBtn.Importance = widget.HighImportance
 
+	btns := container.NewVBox(
+		backBtn,
+		doneBtn,
+	)
+
 	body := container.NewBorder(
 		title,
-		doneBtn,
+		btns,
 		nil, nil,
 		picker.root,
 	)

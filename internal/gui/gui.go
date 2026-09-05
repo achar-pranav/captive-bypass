@@ -28,7 +28,8 @@ type ui struct {
 	portal        *portal.Client
 	wifi          backends.Backend
 	led           *ledWidget
-	statusText    *widget.Label
+	statusTitle   *widget.Label
+	statusSub     *widget.Label
 	toastWidget   *bottomToast
 	refreshCancel context.CancelFunc
 	spam          antiSpam
@@ -54,7 +55,8 @@ func Run() error {
 		portal:      portal.New(cfg.Portal, nil),
 		wifi:        auto.Default(),
 		led:         newLEDWidget(LEDRed),
-		statusText:  widget.NewLabel("<Disconnected>"),
+		statusTitle: widget.NewLabel("<Disconnected>"),
+		statusSub:   widget.NewLabel("Wi-Fi is offline"),
 		toastWidget: newBottomToast(),
 	}
 
@@ -95,12 +97,16 @@ func (u *ui) wrapWithToast(content fyne.CanvasObject) fyne.CanvasObject {
 // ---------- Main Menu ----------
 
 func (u *ui) showMain() {
-	u.statusText.TextStyle = fyne.TextStyle{Bold: true}
+	u.statusTitle.TextStyle = fyne.TextStyle{Bold: true}
+	u.statusSub.TextStyle = fyne.TextStyle{Italic: true}
 
-	// 1. Top status line with 4-state LED and title text <Status>
+	// 1. Top status line with 4-state LED and non-wrapping title & subtext
 	statusHeader := container.NewHBox(
 		u.led,
-		u.statusText,
+		container.NewVBox(
+			u.statusTitle,
+			u.statusSub,
+		),
 	)
 
 	// 2. Title card 1: Networks
@@ -114,7 +120,7 @@ func (u *ui) showMain() {
 		u.cfg.Paused = !on
 		u.saveConfig()
 		if !on {
-			u.setLED(LEDRed, "<Disabled>")
+			u.setLED(LEDRed, "<Disabled>", "captive-bypass paused")
 		} else {
 			u.refreshStatusOnce()
 		}
@@ -349,8 +355,7 @@ func (u *ui) showAddCredsDialog() {
 	userEntry := widget.NewEntry()
 	userEntry.SetPlaceHolder("SRN")
 
-	passEntry := widget.NewPasswordEntry()
-	passEntry.SetPlaceHolder("Password")
+	passEntry, passRow := newPasswordEntryWithToggle("Password")
 
 	disclaimer := widget.NewLabel(
 		"Passwords are never stored in plaintext. We use OS hardware fingerprinting " +
@@ -398,7 +403,89 @@ func (u *ui) showAddCredsDialog() {
 		widget.NewLabel("2. Username (SRN)"),
 		userEntry,
 		widget.NewLabel("3. Password"),
-		passEntry,
+		passRow,
+		disclaimer,
+	)
+
+	btns := container.NewHBox(layout.NewSpacer(), cancelBtn, saveBtn)
+	content := container.NewBorder(nil, btns, nil, nil, form)
+
+	win.SetContent(content)
+	win.Show()
+}
+
+
+func (u *ui) showEditCredsDialog(initialName string) {
+	var win fyne.Window
+	win = u.a.NewWindow("Edit Credentials")
+	win.Resize(fyne.NewSize(380, 390))
+
+	fp, _ := config.MachineFingerprint()
+	initialUser, initialPass, _ := u.cfg.GetCredsByName(fp, initialName)
+
+	nameEntry := widget.NewEntry()
+	nameEntry.SetText(initialName)
+
+	userEntry := widget.NewEntry()
+	userEntry.SetText(initialUser)
+
+	passEntry, passRow := newPasswordEntryWithToggle("Password")
+	passEntry.SetText(initialPass)
+
+	disclaimer := widget.NewLabel(
+		"Passwords are never stored in plaintext. We use OS hardware fingerprinting " +
+			"and AES-GCM encryption to prevent theft by copy.",
+	)
+	disclaimer.TextStyle = fyne.TextStyle{Italic: true}
+	disclaimer.Wrapping = fyne.TextWrapWord
+
+	saveBtn := widget.NewButton("Save Changes", func() {
+		u.spam.Run(func() {
+			if userEntry.Text == "" || passEntry.Text == "" {
+				fyne.Do(func() { u.toast("Please fill in Username and Password") })
+				return
+			}
+			fp, err := config.MachineFingerprint()
+			if err != nil {
+				fyne.Do(func() { u.toast("Fingerprint error: " + err.Error()) })
+				return
+			}
+			nm := nameEntry.Text
+			if nm == "" {
+				nm = initialName
+			}
+			if nm != initialName {
+				_ = u.cfg.DeleteCredSet(initialName)
+			}
+			if err := u.cfg.SetCredSet(fp, nm, userEntry.Text, passEntry.Text); err != nil {
+				fyne.Do(func() { u.toast("Encrypt error: " + err.Error()) })
+				return
+			}
+			if u.cfg.ActiveSet == initialName {
+				u.cfg.ActiveSet = nm
+			}
+			u.saveConfig()
+			fyne.Do(func() {
+				win.Close()
+				u.showManageCredsDialog()
+				u.toast("Updated credentials: " + nm)
+			})
+		})
+	})
+	saveBtn.Importance = widget.HighImportance
+
+	cancelBtn := widget.NewButton("Cancel", func() {
+		win.Close()
+		u.showManageCredsDialog()
+	})
+
+	form := container.NewVBox(
+		widget.NewLabel("1. Credentials name"),
+		nameEntry,
+		widget.NewLabel("2. Username (SRN)"),
+		userEntry,
+		widget.NewLabel("3. Password"),
+		passRow,
 		disclaimer,
 	)
 
@@ -440,16 +527,33 @@ func (u *ui) showManageCredsDialog() {
 
 		for _, cs := range u.cfg.CredSets {
 			name := cs.Name
+
+			editBtn := widget.NewButtonWithIcon("", theme.DocumentCreateIcon(), func() {
+				u.spam.Run(func() {
+					fyne.Do(func() {
+						win.Close()
+						u.showEditCredsDialog(name)
+					})
+				})
+			})
+
 			trashBtn := widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
 				u.spam.Run(func() {
 					if err := u.cfg.DeleteCredSet(name); err != nil {
 						fyne.Do(func() { u.toast(err.Error()) })
 						return
 					}
+					if len(u.cfg.CredSets) > 0 && u.cfg.ActiveSet == "" {
+						u.cfg.ActiveSet = u.cfg.CredSets[0].Name
+					}
 					u.saveConfig()
 					fyne.Do(func() {
 						renderList()
-						u.toast("Deleted " + name)
+						if len(u.cfg.CredSets) == 0 {
+							u.toast("Warning: All credentials deleted. Auto-login paused.")
+						} else {
+							u.toast("Deleted " + name)
+						}
 					})
 				})
 			})
@@ -458,6 +562,7 @@ func (u *ui) showManageCredsDialog() {
 			row := container.NewHBox(
 				widget.NewLabel(fmt.Sprintf("%s (%s)", name, cs.Username)),
 				layout.NewSpacer(),
+				editBtn,
 				trashBtn,
 			)
 			rows.Add(row)
@@ -494,21 +599,24 @@ func (u *ui) showManageCredsDialog() {
 
 // ---------- Status polling & LED Updates ----------
 
-func (u *ui) setLED(state LEDState, text string) {
+func (u *ui) setLED(state LEDState, title, sub string) {
 	fyne.Do(func() {
 		if u.led != nil {
 			u.led.SetState(state)
 		}
-		if u.statusText != nil {
-			u.statusText.SetText(text)
+		if u.statusTitle != nil {
+			u.statusTitle.SetText(title)
+		}
+		if u.statusSub != nil {
+			u.statusSub.SetText(sub)
 		}
 	})
 }
 
 func (u *ui) refreshStatusOnce() {
 	go func() {
-		state, text := u.evalStatus()
-		u.setLED(state, text)
+		state, title, sub := u.evalStatus()
+		u.setLED(state, title, sub)
 	}()
 }
 
@@ -518,20 +626,20 @@ func (u *ui) refreshStatusLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-time.After(3 * time.Second):
-			state, text := u.evalStatus()
-			u.setLED(state, text)
+			state, title, sub := u.evalStatus()
+			u.setLED(state, title, sub)
 		}
 	}
 }
 
-func (u *ui) evalStatus() (LEDState, string) {
+func (u *ui) evalStatus() (LEDState, string, string) {
 	if u.cfg.Paused {
-		return LEDRed, "<Disabled>"
+		return LEDRed, "<Disabled>", "captive-bypass paused"
 	}
 
 	ssid, err := u.wifi.ActiveSSID()
 	if err != nil || ssid == "" {
-		return LEDRed, "<Disconnected>"
+		return LEDRed, "<Disconnected>", "Wi-Fi is offline"
 	}
 
 	// Check if signal is at edge of network
@@ -544,7 +652,7 @@ func (u *ui) evalStatus() (LEDState, string) {
 					if u.cfg.Vanguard {
 						u.toast(fmt.Sprintf("[Vanguard] Weak Wi-Fi (%d%% <= %d%%)", ap.Signal, threshold))
 					}
-					return LEDOrange, fmt.Sprintf("<Edge of Network: %s (%d%%)>", ssid, ap.Signal)
+					return LEDOrange, "Network edge", "You're at the edge"
 				}
 				break
 			}
@@ -553,8 +661,8 @@ func (u *ui) evalStatus() (LEDState, string) {
 
 	online, _ := u.portal.Livecheck(context.Background())
 	if online {
-		return LEDGreen, fmt.Sprintf("<Connected: %s>", ssid)
+		return LEDGreen, "<Connected>", fmt.Sprintf("Connected to %s", ssid)
 	}
 
-	return LEDYellow, fmt.Sprintf("<In Progress: %s>", ssid)
+	return LEDYellow, "<In Progress>", fmt.Sprintf("Authenticating with %s", ssid)
 }

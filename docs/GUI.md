@@ -30,15 +30,17 @@ Triggered automatically on first run when no credentials are configured, or via 
 - 3 primary input fields:
   1. **Credentials name** (default: `default`)
   2. **Username** (SRN, e.g. `PES1UG...`)
-  3. **Password** (Portal password)
+  3. **Password** (Portal password with **👁 Eye toggle button** to show/hide typed password)
 - **Security Disclaimer**:
   > *"Passwords are never stored in plaintext. We use OS hardware fingerprinting and AES-GCM encryption to prevent theft by copy."*
+- **Back**: Secondary button placed above Continue to return to Screen 1.
 - **Continue**: Full-width electric blue button at the bottom. Validates inputs, encrypts credentials, and advances to Screen 3.
 
 ### Screen 3: Select at least one SSID to log into automatically
 - Header title: *"Select at least one SSID to log into automatically"*
 - **Networks ⟳** refresh button next to the title to re-scan surrounding APs.
 - Wi-Fi list with checkboxes and live signal percentage (`%`).
+- **Back**: Secondary button placed above Done to return to Screen 2.
 - **Done**: Full-width electric blue button at the bottom. Saves selected SSIDs and launches the Main Menu.
 
 ---
@@ -52,7 +54,7 @@ Located at the top left of the interface:
 - **🟢 Green**: `<Connected>` — Wi-Fi connected and portal authenticated.
 - **🔴 Red**: `<Disconnected>` — Wi-Fi offline or bypass disabled.
 - **🟡 Yellow**: `<In Progress>` — Associated with target Wi-Fi, negotiating captive portal login handshake.
-- **🟠 Orange**: `<Edge of Network>` — Triggered when signal drops below the configured edge threshold (default `15%`). Triggers roaming pre-buffering if Vanguard is active.
+- **🟠 Orange**: `Network edge` (Subtext: `You're at the edge`) — Triggered when signal drops below configured threshold (default 15%). No text wrapping.
 
 ### Networks Card
 - Displays count of recognized networks.
@@ -63,8 +65,8 @@ Located at the top left of the interface:
 ### Creds Card
 - Displays active profile name and configured sets count.
 - Two action buttons on the far right:
-  - **[Add]**: Opens the 3-field credential entry dialog (Name, Username, Password) with encryption disclaimer.
-  - **[Manage]**: Opens the profile management dialog with radio buttons to switch the active set and red square trash buttons (`🗑`) to delete profiles.
+  - **[Add]**: Opens the 3-field credential entry dialog (Name, Username, Password with 👁 eye toggle) with encryption disclaimer.
+  - **[Manage]**: Opens the profile management dialog with radio buttons to switch the active set, an **Edit pencil button (`✏️`)** to update credentials/passwords, and trash buttons (`🗑`) to delete profiles (deleting the last profile triggers a warning toast without blocking).
 
 ### Bottom Preference Checkboxes
 1. `[x] Enable/Disable the captive-bypass` (pauses or resumes auto-login).

@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -185,4 +186,25 @@ func signalLabel(pct int) fyne.CanvasObject {
 	lbl := widget.NewLabel(fmt.Sprintf("%d%%", pct))
 	lbl.TextStyle = fyne.TextStyle{Monospace: true}
 	return lbl
+}
+
+// newPasswordEntryWithToggle creates an entry field masked by default with an eye icon button to toggle visibility
+func newPasswordEntryWithToggle(placeholder string) (*widget.Entry, fyne.CanvasObject) {
+	entry := widget.NewPasswordEntry()
+	entry.SetPlaceHolder(placeholder)
+
+	var eyeBtn *widget.Button
+	eyeBtn = widget.NewButtonWithIcon("", theme.VisibilityIcon(), func() {
+		entry.Password = !entry.Password
+		if entry.Password {
+			eyeBtn.SetIcon(theme.VisibilityIcon())
+		} else {
+			eyeBtn.SetIcon(theme.VisibilityOffIcon())
+		}
+		entry.Refresh()
+	})
+	eyeBtn.Importance = widget.LowImportance
+
+	row := container.NewBorder(nil, nil, nil, eyeBtn, entry)
+	return entry, row
 }

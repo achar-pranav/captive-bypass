@@ -58,5 +58,5 @@ dkms.conf
 !go.mod
 
 # local build output
-captive-bypass
+/captive-bypass
 sih-project/

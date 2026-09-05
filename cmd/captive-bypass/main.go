@@ -12,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/achar-pranav/captive-bypass/backends/windows"
 	"github.com/achar-pranav/captive-bypass/internal/config"
 	"github.com/achar-pranav/captive-bypass/internal/gui"
 	"github.com/achar-pranav/captive-bypass/internal/install"
@@ -267,14 +266,7 @@ func runServe() {
 	}
 }
 
-func runWatch() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	if err := windows.Listen(ctx, serve.DefaultSocketPath()); err != nil {
-		fmt.Fprintln(os.Stderr, "captive-bypass:", err)
-		os.Exit(1)
-	}
-}
+
 
 func runEvent(args []string) {
 	var cmd string

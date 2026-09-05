@@ -1,16 +1,13 @@
 package gui
 
 import (
-	"fmt"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 	"github.com/achar-pranav/captive-bypass/internal/config"
 )
 
-// staged selection shared by wizard and editor dialogs
 type ssidStaging struct {
 	picked map[string]bool
 	order  []string
@@ -46,15 +43,127 @@ func (s *ssidStaging) toggle(ssid string, on bool) {
 	}
 }
 
-// ---------- first-run wizard ----------
+// ---------- Screen 1: Permissions & Trust ----------
 
-func (u *ui) showWizard() {
-	name := widget.NewEntry()
-	name.SetText("default")
-	user := widget.NewEntry()
-	user.SetPlaceHolder("SRN (e.g. PES1UG...)")
-	pass := widget.NewPasswordEntry()
-	pass.SetPlaceHolder("Portal Password")
+func (u *ui) showWizardScreen1() {
+	title := widget.NewLabel("Permissions & Trust")
+	title.TextStyle = fyne.TextStyle{Bold: true}
+
+	info := widget.NewLabel(
+		"Welcome to captive-bypass.\n\n" +
+			"This tool automates logging into the campus captive portal whenever you connect.\n\n" +
+			"• Hardware & Wi-Fi: Reads the active network SSID without requiring root privileges.\n" +
+			"• Open Source: 100% auditable code (github.com/achar-pranav/captive-bypass).\n" +
+			"• Local Only: Your portal credentials never leave your machine.\n\n" +
+			"Click Continue to set up credentials, or Skip to jump to the main menu.",
+	)
+	info.Wrapping = fyne.TextWrapWord
+
+	continueBtn := widget.NewButton("Continue", func() {
+		u.spam.Run(func() {
+			fyne.Do(u.showWizardScreen2)
+		})
+	})
+	continueBtn.Importance = widget.HighImportance
+
+	skipBtn := widget.NewButton("Skip", func() {
+		u.spam.Run(func() {
+			fyne.Do(u.showMain)
+		})
+	})
+
+	buttons := container.NewVBox(
+		continueBtn,
+		skipBtn,
+	)
+
+	body := container.NewVBox(
+		title,
+		layout.NewSpacer(),
+		info,
+		layout.NewSpacer(),
+		buttons,
+	)
+
+	u.w.SetContent(u.wrapWithToast(body))
+}
+
+// ---------- Screen 2: Add one set of credentials ----------
+
+func (u *ui) showWizardScreen2() {
+	title := widget.NewLabel("Add Credentials")
+	title.TextStyle = fyne.TextStyle{Bold: true}
+
+	nameEntry := widget.NewEntry()
+	nameEntry.SetText("default")
+
+	userEntry := widget.NewEntry()
+	userEntry.SetPlaceHolder("PES1UG...")
+
+	passEntry := widget.NewPasswordEntry()
+	passEntry.SetPlaceHolder("Portal Password")
+
+	disclaimer := widget.NewLabel(
+		"Passwords are never stored in plaintext. We use OS hardware fingerprinting " +
+			"and AES-GCM encryption to prevent theft by copy.",
+	)
+	disclaimer.TextStyle = fyne.TextStyle{Italic: true}
+	disclaimer.Wrapping = fyne.TextWrapWord
+
+	// Continue button takes the entire width of the bottom
+	continueBtn := widget.NewButton("Continue", func() {
+		u.spam.Run(func() {
+			user := userEntry.Text
+			pass := passEntry.Text
+			name := nameEntry.Text
+			if name == "" {
+				name = "default"
+			}
+			if user == "" || pass == "" {
+				u.toast("Please fill in your SRN and Password")
+				return
+			}
+			fp, err := config.MachineFingerprint()
+			if err != nil {
+				u.toast("Fingerprint error: " + err.Error())
+				return
+			}
+			if err := u.cfg.SetCredSet(fp, name, user, pass); err != nil {
+				u.toast("Could not encrypt credentials: " + err.Error())
+				return
+			}
+			u.saveConfig()
+			fyne.Do(u.showWizardScreen3)
+		})
+	})
+	continueBtn.Importance = widget.HighImportance
+
+	form := container.NewVBox(
+		widget.NewLabel("1. Credentials name"),
+		nameEntry,
+		widget.NewLabel("2. Username"),
+		userEntry,
+		widget.NewLabel("3. Password"),
+		passEntry,
+		disclaimer,
+	)
+
+	body := container.NewBorder(
+		title,
+		continueBtn,
+		nil, nil,
+		form,
+	)
+
+	u.w.SetContent(u.wrapWithToast(body))
+}
+
+// ---------- Screen 3: Select at least one SSID to log into automatically ----------
+
+func (u *ui) showWizardScreen3() {
+	title := widget.NewLabel("Select at least one SSID to log into automatically")
+	title.TextStyle = fyne.TextStyle{Bold: true}
+	title.Wrapping = fyne.TextWrapWord
 
 	staging := newStaging(u.cfg.SSIDs)
 	picker := newSSIDPicker(u.wifi, pickerHooks{
@@ -62,142 +171,26 @@ func (u *ui) showWizard() {
 		onRow:   staging.toggle,
 	})
 
-	save := widget.NewButton("Finish Setup & Start Auto-Login", func() {
-		setName := name.Text
-		if setName == "" {
-			setName = "default"
-		}
-		if user.Text == "" || pass.Text == "" || len(staging.order) == 0 {
-			u.toast("Please fill in your SRN, password, and select at least one network.")
-			return
-		}
-		fp, err := config.MachineFingerprint()
-		if err != nil {
-			u.toast("Fingerprint error: " + err.Error())
-			return
-		}
-		if err := u.cfg.SetCredSet(fp, setName, user.Text, pass.Text); err != nil {
-			u.toast("Could not encrypt credentials: " + err.Error())
-			return
-		}
-		u.cfg.SSIDs = staging.order
-		u.saveConfig()
-		u.showMain()
+	// Done button takes the entire width of the bottom
+	doneBtn := widget.NewButton("Done", func() {
+		u.spam.Run(func() {
+			if len(staging.order) == 0 {
+				u.toast("Please select at least one network")
+				return
+			}
+			u.cfg.SSIDs = staging.order
+			u.saveConfig()
+			fyne.Do(u.showMain)
+		})
 	})
-	save.Importance = widget.HighImportance
+	doneBtn.Importance = widget.HighImportance
 
-	welcomeTitle := widget.NewLabel("Welcome to captive-bypass")
-	welcomeTitle.TextStyle = fyne.TextStyle{Bold: true}
-	welcomeSubtitle := widget.NewLabel("Enter your PESU credentials and pick your campus Wi-Fi networks.")
-
-	header := container.NewVBox(
-		welcomeTitle,
-		welcomeSubtitle,
-		widget.NewForm(
-			widget.NewFormItem("Profile Name", name),
-			widget.NewFormItem("Username (SRN)", user),
-			widget.NewFormItem("Password", pass),
-		),
-	)
-
-	root := container.NewBorder(
-		header,
-		save,
+	body := container.NewBorder(
+		title,
+		doneBtn,
 		nil, nil,
 		picker.root,
 	)
-	u.w.SetContent(root)
-}
 
-// ---------- SSID editor (batch apply on OK) ----------
-
-func (u *ui) showSSIDEditor() {
-	staging := newStaging(u.cfg.SSIDs)
-	picker := newSSIDPicker(u.wifi, pickerHooks{
-		checked: func(ssid string) bool { return staging.picked[ssid] },
-		onRow:   staging.toggle,
-	})
-
-	d := dialog.NewCustomConfirm("Registered Networks", "Save", "Cancel", picker.root, func(ok bool) {
-		if !ok {
-			return
-		}
-		u.cfg.SSIDs = staging.order
-		u.saveConfig()
-		u.showMain()
-	}, u.w)
-	d.Resize(fyne.NewSize(440, 500))
-	d.Show()
-}
-
-// ---------- credential set form ----------
-
-func (u *ui) showCredsDialog() {
-	name := widget.NewEntry()
-	name.SetPlaceHolder("Profile name (e.g. personal, lab)")
-	user := widget.NewEntry()
-	user.SetPlaceHolder("SRN")
-	pass := widget.NewPasswordEntry()
-	pass.SetPlaceHolder("Password")
-
-	existing := u.activeSet()
-	if existing != nil {
-		name.SetText(existing.Name)
-		user.SetText(existing.Username)
-	} else if u.cfg.ActiveSet != "" || len(u.cfg.CredSets) > 0 {
-		name.SetText(nextName(u.cfg))
-	}
-
-	form := dialog.NewForm("Credential Set", "Save", "Cancel", []*widget.FormItem{
-		widget.NewFormItem("Profile Name", name),
-		widget.NewFormItem("Username (SRN)", user),
-		widget.NewFormItem("Password", pass),
-	}, func(ok bool) {
-		if !ok || user.Text == "" || pass.Text == "" {
-			return
-		}
-		fp, err := config.MachineFingerprint()
-		if err != nil {
-			u.toast("Fingerprint error: " + err.Error())
-			return
-		}
-		nm := name.Text
-		if nm == "" {
-			nm = nextName(u.cfg)
-		}
-		if err := u.cfg.SetCredSet(fp, nm, user.Text, pass.Text); err != nil {
-			u.toast("Could not encrypt credentials: " + err.Error())
-			return
-		}
-		u.saveConfig()
-		u.toast("Credentials saved (" + nm + ")")
-		u.showMain()
-	}, u.w)
-	form.Resize(fyne.NewSize(420, 300))
-	form.Show()
-}
-
-func (u *ui) activeSet() *config.CredSet {
-	for i := range u.cfg.CredSets {
-		if u.cfg.CredSets[i].Name == u.cfg.ActiveSet {
-			return &u.cfg.CredSets[i]
-		}
-	}
-	return nil
-}
-
-func nextName(c *config.Config) string {
-	for i := 1; ; i++ {
-		cand := fmt.Sprintf("set-%d", i)
-		taken := false
-		for _, cs := range c.CredSets {
-			if cs.Name == cand {
-				taken = true
-				break
-			}
-		}
-		if !taken {
-			return cand
-		}
-	}
+	u.w.SetContent(u.wrapWithToast(body))
 }

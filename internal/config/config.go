@@ -21,6 +21,7 @@ type Config struct {
 	CredSets  []CredSet `json:"cred_sets"`
 	ActiveSet string    `json:"active_set"`
 	Vanguard  bool      `json:"vanguard"`
+	Threshold int       `json:"threshold,omitempty"` // signal % threshold for edge of network (default 15)
 	Creds     credsBlob `json:"creds,omitempty"`
 }
 
@@ -30,9 +31,17 @@ type Timings struct {
 	LogoutCooldown int `json:"logout_cooldown"`
 }
 
+func (c *Config) SignalThreshold() int {
+	if c.Threshold <= 0 {
+		return 15
+	}
+	return c.Threshold
+}
+
 func Default() *Config {
 	return &Config{
 		Portal: envOr("CAPTIVE_BYPASS_PORTAL", DefaultPortal),
+		Threshold: intEnv("CAPTIVE_BYPASS_THRESHOLD", 15),
 		Timings: Timings{
 			RetryDelay:     intEnv("CAPTIVE_BYPASS_RETRY_DELAY", 5),
 			LoginCooldown:  intEnv("CAPTIVE_BYPASS_LOGIN_COOLDOWN", 60),

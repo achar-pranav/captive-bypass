@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -31,6 +32,7 @@ Commands (mirrors of the original script):
   disable          pause auto login/logout (e.g. a friend's login)
   update-creds     store a credential set: --user SRN --pass PASS [--name NAME]
   set-network      replace recognized networks: set-network SSID [SSID...]
+  set-threshold    get/set edge-of-network threshold (1-100%): set-threshold [PCT]
   install          set up the background watcher (no admin needed)
   uninstall        remove the watcher AND wipe credentials, config, state
 
@@ -69,6 +71,8 @@ func main() {
 		runUpdateCreds(os.Args[2:])
 	case "set-network":
 		runSetNetwork(os.Args[2:])
+	case "set-threshold":
+		runSetThreshold(os.Args[2:])
 	case "serve":
 		runServe()
 	case "event":
@@ -291,4 +295,20 @@ func runEvent(args []string) {
 
 func usage() {
 	fmt.Print(usageText)
+}
+
+func runSetThreshold(args []string) {
+	cfg := loadConfigOrDie()
+	if len(args) == 0 {
+		fmt.Printf("Current edge-of-network threshold: %d%%\n", cfg.SignalThreshold())
+		return
+	}
+	val, err := strconv.Atoi(args[0])
+	if err != nil || val < 1 || val > 100 {
+		fmt.Fprintln(os.Stderr, "captive-bypass: threshold must be an integer between 1 and 100 (percentage)")
+		os.Exit(2)
+	}
+	cfg.Threshold = val
+	saveConfig(cfg)
+	fmt.Printf("Edge-of-network threshold set to %d%%.\n", val)
 }

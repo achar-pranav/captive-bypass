@@ -7,21 +7,25 @@ import (
 	"fyne.io/fyne/v2/theme"
 )
 
-// Discord AMOLED Theme
-// Inspired by Discord's Midnight / AMOLED palette:
-// Pure black background (#000000) with deep slate card surfaces (#111214 / #1E1F22)
-// and Discord Blurple (#5865F2) accents.
-
 var (
+	// AMOLED pure pitch black & dark surfaces
 	colAmoledBg       = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0xFF} // #000000
-	colDiscordCard    = color.NRGBA{R: 0x11, G: 0x12, B: 0x14, A: 0xFF} // #111214
-	colDiscordSurface = color.NRGBA{R: 0x1E, G: 0x1F, B: 0x22, A: 0xFF} // #1E1F22
-	colDiscordBorder  = color.NRGBA{R: 0x2B, G: 0x2D, B: 0x31, A: 0xFF} // #2B2D31
-	colBlurple        = color.NRGBA{R: 0x58, G: 0x65, B: 0xF2, A: 0xFF} // #5865F2
-	colBlurpleHover   = color.NRGBA{R: 0x47, G: 0x52, B: 0xC4, A: 0xFF} // #4752C4
-	colBlurpleActive  = color.NRGBA{R: 0x3C, G: 0x45, B: 0xA5, A: 0xFF} // #3C45A5
+	colSurfaceCard    = color.NRGBA{R: 0x0A, G: 0x0C, B: 0x0E, A: 0xFF} // #0A0C0E
+	colInputSurface   = color.NRGBA{R: 0x0E, G: 0x10, B: 0x12, A: 0xFF} // #0E1012
+	colBorderDim      = color.NRGBA{R: 0x1E, G: 0x1F, B: 0x22, A: 0xFF} // #1E1F22
+	colButtonBlack    = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0xFF} // #000000 with white outline
+
+	// Electric Blue accents
+	colElectricBlue   = color.NRGBA{R: 0x00, G: 0xA8, B: 0xFF, A: 0xFF} // #00A8FF
+	colElectricHover  = color.NRGBA{R: 0x33, G: 0xBA, B: 0xFF, A: 0xFF} // #33BAFF
+	colElectricActive = color.NRGBA{R: 0x00, G: 0x90, B: 0xDC, A: 0xFF} // #0090DC
+
+	// Hover subtle white tint
+	colHoverWhiteTint = color.NRGBA{R: 0x26, G: 0x2A, B: 0x30, A: 0xFF} // subtle white tint over dark
+
+	// Typography & status
 	colTextLight      = color.NRGBA{R: 0xF2, G: 0xF3, B: 0xF5, A: 0xFF} // #F2F3F5
-	colTextMuted      = color.NRGBA{R: 0x94, G: 0x9B, B: 0xA4, A: 0xFF} // #949BA4
+	colTextMuted      = color.NRGBA{R: 0x7A, G: 0x82, B: 0x8A, A: 0xFF} // #7A828A
 	colSuccess        = color.NRGBA{R: 0x23, G: 0xA5, B: 0x5A, A: 0xFF} // #23A55A
 	colDanger         = color.NRGBA{R: 0xF2, G: 0x3F, B: 0x43, A: 0xFF} // #F23F43
 )
@@ -39,25 +43,27 @@ func (t *amoledTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant)
 	case theme.ColorNameBackground:
 		return colAmoledBg
 	case theme.ColorNameButton:
-		return colDiscordSurface
+		return colButtonBlack
 	case theme.ColorNameInputBackground:
-		return colDiscordSurface
+		return colInputSurface
 	case theme.ColorNameMenuBackground, theme.ColorNameOverlayBackground:
-		return colDiscordCard
+		return colSurfaceCard
 	case theme.ColorNamePrimary:
-		return colBlurple
-	case theme.ColorNameFocus, theme.ColorNameHover, theme.ColorNameSelection:
-		return colBlurpleHover
+		return colElectricBlue
+	case theme.ColorNameFocus, theme.ColorNameSelection:
+		return colElectricHover
+	case theme.ColorNameHover:
+		return colHoverWhiteTint
 	case theme.ColorNamePressed:
-		return colBlurpleActive
+		return colElectricActive
 	case theme.ColorNameForeground:
 		return colTextLight
 	case theme.ColorNameForegroundOnPrimary:
-		return color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF}
+		return color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0xFF}
 	case theme.ColorNameSeparator:
-		return colDiscordBorder
+		return colBorderDim
 	case theme.ColorNameScrollBar:
-		return colDiscordBorder
+		return colBorderDim
 	case theme.ColorNamePlaceHolder:
 		return colTextMuted
 	case theme.ColorNameSuccess:
@@ -71,7 +77,9 @@ func (t *amoledTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant)
 
 func (t *amoledTheme) Size(name fyne.ThemeSizeName) float32 {
 	switch name {
-	case theme.SizeNameInputRadius, theme.SizeNameSelectionRadius:
+	case theme.SizeNameInputBorder:
+		return 1
+	case theme.SizeNameSelectionRadius:
 		return 8
 	case theme.SizeNameInnerWindowRadius:
 		return 10

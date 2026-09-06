@@ -27,10 +27,14 @@ mode=191&username=<SRN>&password=<PASSWORD>&a=<epoch-ms>&producttype=0
 ## Install & use (Linux)
 
 ```
-go build -o captive-bypass ./cmd/captive-bypass
+wails build                     # builds frontend + Go binary (main package at repo root)
 ./captive-bypass --install      # systemd user unit; no password prompts, ever
 ./captive-bypass gui            # first-run wizard: cred set + SSID picker
 ```
+
+Plain `go build -o captive-bypass .` also works, but requires the frontend to be
+built first (`npm run build` in `internal/gui/frontend`) so the embedded
+`frontend/dist` assets exist. `wails build` handles that step for you.
 
 CLI mirrors the old bash tool's verbs:
 

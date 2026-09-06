@@ -54,8 +54,8 @@ Environment overrides (advanced):
 
 func main() {
 	if len(os.Args) < 2 {
-		usage()
-		os.Exit(1)
+		defaultEntrypoint()
+		return
 	}
 	arg := strings.TrimPrefix(os.Args[1], "--")
 	switch arg {

@@ -1,0 +1,169 @@
+name: Release Builder
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+      - 'agent/*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  core-smoke-test:
+    name: Core Pure-Go Cross-Compile Sweep
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Cross-compile sweep (5 pure-Go targets)
+        run: |
+          echo "Verifying pure-Go core packages across 5 OS/arch targets..."
+          GOOS=linux GOARCH=amd64 go build ./internal/config/... ./internal/portal/... ./internal/state/...
+          GOOS=linux GOARCH=arm64 go build ./internal/config/... ./internal/portal/... ./internal/state/...
+          GOOS=windows GOARCH=amd64 go build ./internal/config/... ./internal/portal/... ./internal/state/...
+          GOOS=darwin GOARCH=amd64 go build ./internal/config/... ./internal/portal/... ./internal/state/...
+          GOOS=darwin GOARCH=arm64 go build ./internal/config/... ./internal/portal/... ./internal/state/...
+          echo "All 5 core targets compiled successfully."
+
+  build:
+    name: Build GUI (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux/amd64
+            archive_name: captive-bypass-linux-amd64.tar.gz
+            artifact_name: captive-bypass-linux-amd64
+          - os: macos-latest
+            platform: darwin/universal
+            archive_name: captive-bypass-darwin-universal.zip
+            artifact_name: captive-bypass-darwin-universal
+          - os: windows-latest
+            platform: windows/amd64
+            archive_name: captive-bypass-windows-amd64.zip
+            artifact_name: captive-bypass-windows-amd64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: internal/gui/frontend/package-lock.json
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev || sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install Frontend Dependencies
+        run: npm --prefix internal/gui/frontend ci
+
+      - name: Determine Version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "version=$(git describe --tags --always 2>/dev/null || echo dev)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Application
+        shell: bash
+        run: |
+          wails build -platform ${{ matrix.platform }} -ldflags "-X main.version=${{ steps.ver.outputs.version }}"
+
+      - name: Package Linux Archive
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p dist
+          chmod +x build/bin/captive-bypass
+          tar -czvf "dist/${{ matrix.archive_name }}" -C build/bin captive-bypass
+
+      - name: Package macOS Archive
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent build/bin/captive-bypass.app "dist/${{ matrix.archive_name }}"
+
+      - name: Package Windows Archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Compress-Archive -Path build/bin/captive-bypass.exe -DestinationPath "dist/${{ matrix.archive_name }}" -Force
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.archive_name }}
+          if-no-files-found: error
+
+  release:
+    name: Package Release & SHA256SUMS
+    needs: [build, core-smoke-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        run: |
+          cd release
+          ls -la
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload Release Archive Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: captive-bypass-release-bundle
+          path: release/*
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true

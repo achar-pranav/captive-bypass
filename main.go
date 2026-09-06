@@ -21,6 +21,8 @@ import (
 	"github.com/achar-pranav/captive-bypass/internal/state"
 )
 
+var version = "dev"
+
 const usageText = `captive-bypass - PESU Sophos/Cyberoam captive portal auto-login
 Usage:
   captive-bypass <command> [flags]
@@ -43,6 +45,7 @@ Watcher/service:
 
   gui              control panel
   dev              tester helpers: wipe | reset-state | clear-vanguard | force
+  -v, --version    show version
   -h, --help       show this help
 
 Environment overrides (advanced):
@@ -61,6 +64,8 @@ func main() {
 	switch arg {
 	case "-h", "help":
 		usage()
+	case "-v", "version":
+		fmt.Printf("captive-bypass %s\n", version)
 	case "login":
 		runLogin()
 	case "logout":

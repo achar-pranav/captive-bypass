@@ -237,7 +237,7 @@ func (a *App) SaveCreds(name, username, password string, setActive bool) error {
 		name = "default"
 	}
 
-	fp, err := config.Fingerprint()
+	fp, err := config.MachineFingerprint()
 	if err != nil {
 		return fmt.Errorf("deriving hardware fingerprint: %w", err)
 	}
@@ -258,7 +258,7 @@ func (a *App) GetCreds(name string) (map[string]string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	fp, err := config.Fingerprint()
+	fp, err := config.MachineFingerprint()
 	if err != nil {
 		return nil, fmt.Errorf("deriving hardware fingerprint: %w", err)
 	}
@@ -342,7 +342,7 @@ func (a *App) ManualLogin() (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	fp, err := config.Fingerprint()
+	fp, err := config.MachineFingerprint()
 	if err != nil {
 		return "", fmt.Errorf("hardware fingerprint: %w", err)
 	}
@@ -355,7 +355,7 @@ func (a *App) ManualLogin() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	ok, msg, err := a.portal.Login(ctx, user, pass, 0)
+	ok, msg, err := a.portal.Login(ctx, user, pass)
 	if err != nil {
 		return "", err
 	}

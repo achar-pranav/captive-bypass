@@ -182,6 +182,26 @@ Alternatives considered and rejected:
   (#00A8FF) accents via a custom fyne theme override; compact window meant to
   be opened once, configured, closed.
 
+## Distribution & signing decision (#45)
+- **Chosen:** ship a pre-compiled, standalone binary (GitHub Releases) on all
+  platforms with a **warning-first** trust path. No code-signing certificates
+  purchased at launch.
+- **Why:** signing is ~$200–300/yr (macOS Apple Developer ~$99 + notarization
+  setup; Windows code-sign cert ~$100–300). We will not spend that on a side
+  project whose purpose is to patch the IT team's incompetence. The signed
+  cost only becomes worth it if adoption proves the return.
+- **macOS:** no notarization at launch. Users authorize via right-click →
+  Open (or System Settings → Privacy & Security → "Open Anyway") after the
+  unidentified-developer warning.
+- **Windows:** no code-sign cert at launch. Users click "More info" → "Run
+  anyway" past SmartScreen.
+- **Mitigation for friction:** a single, clear in-setup warning on first run
+  explains WHY the warning appears — this is an unsigned, locally-stored app,
+  and here's how to verify it — so the one-time wall is digestible rather than
+  scary.
+- **Revisit trigger:** only real adoption (campus rollout, downloads) justifies
+  paying for signing. Until then warnings are the accepted tradeoff.
+
 ## ELI5 glossary
 | Term | Plain meaning |
 |---|---|

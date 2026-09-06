@@ -34,7 +34,7 @@ func Run() error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	app := NewApp(cfg, cfgPath, portal.New("", nil), auto.Select())
+	app := NewApp(cfg, cfgPath, portal.New("", nil), auto.Default())
 
 	return wails.Run(&options.App{
 		Title:             "captive-bypass",

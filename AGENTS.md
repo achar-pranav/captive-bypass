@@ -33,7 +33,7 @@ session timeout (~3h, unmeasured). MAC randomization per connect is the only
   - `iw/` — `iw` state reader (SSID, signal, BSSID for watcher)
   - `windows/` — WLAN API backend (events, listener, netsh parsing)
   - `auto/` — platform-aware auto-select of the right backend
-- `cmd/captive-bypass/main.go` — CLI entry point
+- `main.go` — CLI entry point (at repo root; Wails requires the main package next to `wails.json`). `main_cli.go`/`main_bindings.go` provide the no-arg behavior per build tag (`!bindings` = usage+exit, `bindings` = launch GUI so Wails can generate bindings).
 - `internal/` — core logic:
   - `config/` — config.json + AES-GCM fingerprint-encrypted cred sets
   - `state/` — cooldowns, last BSSID, session state

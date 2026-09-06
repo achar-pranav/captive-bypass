@@ -57,6 +57,12 @@ dkms.conf
 # Go
 !go.mod
 
+# Wails build output
+/build/
+
+# Wails-generated frontend fingerprint
+internal/gui/frontend/package.json.md5
+
 # local build output
 /captive-bypass
 sih-project/

@@ -18,7 +18,7 @@ This document describes the modern GUI architecture for `captive-bypass`, utiliz
   - **Linux**: `libwebkit2gtk-4.0 / 4.1` (standard desktop package)
 - **Compact Binary Size**: Stripped executable is **~12 – 15 MB** with ~35MB RAM usage (virtually identical to or lighter than Fyne with custom fonts).
 - **100% Pixel-Perfect Styling**: Uses standard HTML, CSS, Tailwind CSS, and React.
-- **Embedded Distribution**: Production assets in `internal/gui/frontend/dist` are embedded into the Go binary at compile-time via Go's native `//go:embed`. Standard `go build ./cmd/captive-bypass` works out of the box without requiring Node on the build runner.
+- **Embedded Distribution**: Production assets in `internal/gui/frontend/dist` are embedded into the Go binary at compile-time via Go's native `//go:embed`. The main package lives at the repo root (Wails requires it next to `wails.json`), and the frontend must be built with `npm run build` before `go build` so `frontend/dist` is current.
 - **Direct Go ↔ TS RPC**: The frontend invokes Go backend methods directly through `window.go.gui.App` with automatic type safety.
 
 ---
@@ -98,9 +98,11 @@ Located at the top left of the interface:
 
 ### Standard Go Build (Production)
 ```bash
-go build -o captive-bypass ./cmd/captive-bypass
+go build -o captive-bypass .
 ./captive-bypass gui
 ```
+
+Note: `go build` requires the frontend to already be built (`npm run build` in `internal/gui/frontend`) so the embedded `frontend/dist` assets exist. `wails build` handles that step automatically.
 
 ### Wails Development (with live reload)
 ```bash

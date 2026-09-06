@@ -70,10 +70,16 @@ binding can never bite. Costs: re-auth every connect; looks like device churn
 to IT (policy risk). Kept as a documented escape hatch only.
 
 ## GUI framework choice
-Chosen: **Fyne** — pure Go native window, no browser/webview, RAM footprint
-~5-15 MB (budget: <=20 MB). Needs CGO (OpenGL) to draw, so each OS builds its
-own copy (Linux on Linux, Windows on Windows) — the accepted tradeoff for a
-small footprint.
+Chosen: **Wails v2** (migrated from Fyne) — Go backend paired with the native OS webview
+(WebKitGTK on Linux, WKWebView on macOS, WebView2 on Windows). Stripped binary footprint
+is ~12-15 MB (budget: <=20 MB), RAM ~35 MB.
+- **Why Fyne was replaced**: Fyne's OpenGL canvas primitives enforced rigid widget padding,
+  inflexible shapes, and lacked CSS support. Recreating modern AMOLED themes resulted in
+  awkward widget layouts and repeated auxiliary widgets (such as duplicate eye toggle widgets
+  beside password entries).
+- **Why Wails**: Delivers 100% pixel-perfect fidelity with React, Tailwind CSS, and AMOLED styling.
+  Embeds assets directly into the Go executable via `//go:embed all:frontend/dist`. Zero Electron
+  bloat because it uses system-native web engines already installed on the OS.
 
 Alternatives considered and rejected:
 - **Wails** (Go backend + native webview, HTML/CSS/JS frontend): runtime

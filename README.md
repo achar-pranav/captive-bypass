@@ -24,11 +24,50 @@ mode=191&username=<SRN>&password=<PASSWORD>&a=<epoch-ms>&producttype=0
 - Success = response body contains `<status><![CDATA[LIVE]]></status>`.
 - Failure = `<status><![CDATA[LOGIN]]></status>` with a reason in `<message>`.
 
-## Install & use (Linux)
+## Downloads & Releases
+
+Pre-compiled standalone archives and checksums are published on [GitHub Releases](https://github.com/achar-pranav/captive-bypass/releases):
+
+| Platform | Package | Artifact |
+|---|---|---|
+| **macOS** (Universal: Apple Silicon + Intel) | `captive-bypass-darwin-universal.zip` | `captive-bypass.app` |
+| **Linux** (x86_64) | `captive-bypass-linux-amd64.tar.gz` | `captive-bypass` |
+| **Windows** (x86_64) | `captive-bypass-windows-amd64.zip` | `captive-bypass.exe` |
+
+### Verifying Checksums
+Download `SHA256SUMS` alongside the archive and verify integrity:
+```bash
+# Linux
+sha256sum -c SHA256SUMS --ignore-missing
+
+# macOS
+shasum -a 256 -c SHA256SUMS --ignore-missing
+```
+
+### macOS Quickstart
+1. Download and extract `captive-bypass-darwin-universal.zip`.
+2. Move `captive-bypass.app` into `/Applications` (or run it directly).
+3. **First launch (warning-first trust path):** Since we do not pay for Apple Developer certs ($99/yr), Gatekeeper will display an unidentified developer prompt on first launch. Right-click `captive-bypass.app` → click **Open** → click **Open**, or visit **System Settings → Privacy & Security** and click **Open Anyway** (see `docs/DESIGN.md` §Distribution).
+
+### Linux Quickstart
+```bash
+tar -xzf captive-bypass-linux-amd64.tar.gz
+chmod +x captive-bypass
+./captive-bypass install      # sets up background watcher (no root/sudo needed)
+./captive-bypass gui          # opens control panel
+```
+
+### Windows Quickstart
+1. Download and extract `captive-bypass-windows-amd64.zip`.
+2. Double-click `captive-bypass.exe`.
+3. On Windows SmartScreen: click **More info** → **Run anyway**.
+
+## Building from source
+
 
 ```
 wails build                     # builds frontend + Go binary (main package at repo root)
-./captive-bypass --install      # systemd user unit; no password prompts, ever
+./captive-bypass install      # systemd user unit; no password prompts, ever
 ./captive-bypass gui            # first-run wizard: cred set + SSID picker
 ```
 

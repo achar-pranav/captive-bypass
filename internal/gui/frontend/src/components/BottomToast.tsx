@@ -13,12 +13,12 @@ export const BottomToast: React.FC<BottomToastProps> = ({ toast, onDismiss }) =>
       {toast && (
         <motion.div
           key={toast.id}
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 20 }}
+          exit={{ opacity: 0, y: -20 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
           onClick={onDismiss}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 cursor-pointer max-w-sm w-[90%]"
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-50 cursor-pointer max-w-sm w-[90%]"
         >
           <div className="bg-[#111214] border border-[#00A8FF]/40 text-[#E6EAED] px-4 py-3 rounded-lg shadow-2xl flex items-center justify-between space-x-3 hover:border-[#00A8FF] transition-colors">
             <div className="flex items-center space-x-2.5">

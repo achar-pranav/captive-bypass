@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+curl -sfk --max-time 10 -X POST "https://rr.pes.edu:8090/logout.xml" \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-urlencode 'mode=193' \
+  --data-urlencode 'username=' \
+  --data-urlencode "a=$(date +%s%3N)" \
+  --data-urlencode 'producttype=0'

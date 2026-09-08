@@ -195,21 +195,8 @@ export default function App() {
   const activeCred = credSets.find((c) => c.id === activeCredSetId) || credSets[0];
 
   return (
-    <div className="w-full h-screen bg-[#000000] text-[#E6EAED] flex flex-col items-center justify-center relative selection:bg-[#00A8FF] selection:text-black font-sans overflow-hidden">
-      <div className="w-full max-w-[430px] h-[580px] bg-[#000000] border border-[#1E1F22] rounded-xl shadow-2xl flex flex-col relative overflow-hidden">
-        {/* Subtle Window Header */}
-        <div className="bg-[#0D0E10] px-4 py-2.5 border-b border-[#1E1F22] flex items-center justify-between shrink-0">
-          <div className="flex items-center space-x-2">
-            <Shield className="w-4 h-4 text-[#00A8FF]" />
-            <span className="text-xs font-semibold text-white tracking-wide">Captive Bypass</span>
-          </div>
-          <div className="flex space-x-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-[#1E1F22]" />
-            <div className="w-2.5 h-2.5 rounded-full bg-[#1E1F22]" />
-            <div className="w-2.5 h-2.5 rounded-full bg-[#1E1F22]" />
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col relative overflow-hidden">
+    <div className="w-full h-screen bg-[#000000] text-[#E6EAED] flex flex-col relative selection:bg-[#00A8FF] selection:text-black font-sans overflow-hidden">
+      <div className="flex-1 flex flex-col relative overflow-hidden">
         {/* ========================================================================= */}
         {/* SCREEN 1: WIZARD PERMISSIONS / TRUST                                      */}
         {/* ========================================================================= */}
@@ -1242,7 +1229,6 @@ export default function App() {
             </div>
           </div>
         )}
-      </div>
       </div>
 
       {/* Bottom Toast Popup */}

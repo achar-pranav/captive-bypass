@@ -1,37 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Trash2, Shield, Wifi, Key, Check, Info, Settings, AlertTriangle, Eye, EyeOff, Pencil, ArrowLeft } from 'lucide-react';
+import { RefreshCw, Trash2, Shield, Wifi, Key, Check, Info, AlertTriangle, Eye, EyeOff, Pencil, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { CredSet, WifiNetwork, LEDState, ToastMessage, WizardStep } from './types';
 import { BottomToast } from './components/BottomToast';
-
-const DEFAULT_NETWORKS: WifiNetwork[] = [
-  { ssid: 'ELEMENT BLOCK', signal: 88, inRange: true },
-  { ssid: 'PESU-STUDENT', signal: 72, inRange: true },
-  { ssid: 'PES-CAMPUS-5G', signal: 45, inRange: true },
-  { ssid: 'PES-FACULTY', signal: 12, inRange: true },
-  { ssid: 'PESU-GUEST', signal: 60, inRange: true },
-];
+import { api, BackendState } from './api';
 
 export default function App() {
   // Navigation & Screen State
   const [step, setStep] = useState<WizardStep>('permissions');
 
   // Configuration State
-  const [activeCredSetId, setActiveCredSetId] = useState<string>('cred-1');
-  const [credSets, setCredSets] = useState<CredSet[]>([
-    { id: 'cred-1', name: 'default', username: 'PES1UG23CS001', password: 'password123' },
-  ]);
-  const [savedSSIDs, setSavedSSIDs] = useState<string[]>(['ELEMENT BLOCK']);
+  const [activeCredSetId, setActiveCredSetId] = useState<string>('');
+  const [credSets, setCredSets] = useState<CredSet[]>([]);
+  const [savedSSIDs, setSavedSSIDs] = useState<string[]>([]);
   const [captiveBypassEnabled, setCaptiveBypassEnabled] = useState<boolean>(true);
   const [vanguardEnabled, setVanguardEnabled] = useState<boolean>(false);
   const [edgeThreshold, setEdgeThreshold] = useState<number>(15);
 
-  // Scanner & Network state
-  const [networks, setNetworks] = useState<WifiNetwork[]>(DEFAULT_NETWORKS);
-  const [isScanning, setIsScanning] = useState<boolean>(false);
+  // Status & Telemetry
+  const [statusTitle, setStatusTitle] = useState<string>('<Disconnected>');
+  const [statusSub, setStatusSub] = useState<string>('Wi-Fi is offline');
+  const [ledState, setLedState] = useState<LEDState>('red');
+  const [currentSignal, setCurrentSignal] = useState<number>(0);
 
-  // LED State: 'green' | 'red' | 'yellow' | 'orange'
-  const [ledState, setLedState] = useState<LEDState>('green');
-  const [currentSignal, setCurrentSignal] = useState<number>(85);
+  // Scanner & Network state (Empty initial list - real scan only)
+  const [networks, setNetworks] = useState<WifiNetwork[]>([]);
+  const [isScanning, setIsScanning] = useState<boolean>(false);
 
   // Modals inside Main Menu
   const [activeModal, setActiveModal] = useState<'none' | 'add_ssid' | 'manage_ssid' | 'add_cred' | 'manage_cred' | 'edit_cred'>('none');
@@ -42,7 +36,7 @@ export default function App() {
   const [formUsername, setFormUsername] = useState<string>('');
   const [formPassword, setFormPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [selectedSSIDsStaging, setSelectedSSIDsStaging] = useState<string[]>(['ELEMENT BLOCK']);
+  const [selectedSSIDsStaging, setSelectedSSIDsStaging] = useState<string[]>([]);
 
   // Bottom Toast Notifications
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -68,36 +62,94 @@ export default function App() {
     setToast(null);
   };
 
-  // Anti-spam wrapper
   const handleAntiSpam = (fn: () => void) => {
     if (isActionLocked) return;
     setIsActionLocked(true);
     fn();
     setTimeout(() => {
       setIsActionLocked(false);
-    }, 400);
+    }, 300);
   };
 
-  // Scan networks
-  const handleRefreshNetworks = () => {
-    handleAntiSpam(() => {
-      setIsScanning(true);
-      triggerToast('Scanning nearby Wi-Fi broadcast...', 'info');
-      setTimeout(() => {
-        setNetworks([
-          { ssid: 'ELEMENT BLOCK', signal: Math.floor(65 + Math.random() * 30), inRange: true },
-          { ssid: 'PESU-STUDENT', signal: Math.floor(50 + Math.random() * 40), inRange: true },
-          { ssid: 'PES-CAMPUS-5G', signal: Math.floor(30 + Math.random() * 50), inRange: true },
-          { ssid: 'PES-FACULTY', signal: Math.floor(10 + Math.random() * 25), inRange: true },
-          { ssid: 'PESU-GUEST', signal: Math.floor(40 + Math.random() * 40), inRange: true },
-        ]);
-        setIsScanning(false);
-        triggerToast('Network scan updated', 'success');
-      }, 700);
-    });
+  // Sync state from Go backend
+  const syncState = async () => {
+    try {
+      const state = await api.getState();
+      if (!state) return;
+
+      setLedState(state.status);
+      setStatusTitle(state.statusTitle);
+      setStatusSub(state.statusSub);
+      setCurrentSignal(state.signalPercent);
+      setCaptiveBypassEnabled(state.isAutoLoginEnabled);
+      setVanguardEnabled(state.isVanguardEnabled);
+      setSavedSSIDs(state.recognizedNetworks || []);
+
+      if (state.credProfiles && state.credProfiles.length > 0) {
+        const sets: CredSet[] = state.credProfiles.map((p) => ({
+          id: p.name,
+          name: p.name,
+          username: p.username,
+        }));
+        setCredSets(sets);
+        const active = state.credProfiles.find((p) => p.isActive) || state.credProfiles[0];
+        setActiveCredSetId(active.name);
+      } else {
+        setCredSets([]);
+        setActiveCredSetId('');
+      }
+
+      // If already configured and first run is false, land on main
+      if (!state.isFirstRun && step === 'permissions') {
+        setStep('main');
+      }
+    } catch (err) {
+      console.error('Failed to sync backend state:', err);
+    }
   };
 
-  // Toggle SSID checkbox in staging
+  useEffect(() => {
+    syncState();
+    const interval = setInterval(syncState, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Real network scan via backend API
+  const handleRefreshNetworks = async () => {
+    if (isScanning) return;
+    setIsScanning(true);
+    triggerToast('Scanning nearby Wi-Fi networks...', 'info');
+
+    try {
+      const results = await api.scanNetworks();
+      if (results && results.length > 0) {
+        const mapped: WifiNetwork[] = results.map((r) => ({
+          ssid: r.ssid,
+          signal: r.signal,
+          inRange: true,
+        }));
+        setNetworks(mapped);
+        triggerToast(`Found ${mapped.length} network${mapped.length === 1 ? '' : 's'}`, 'success');
+      } else {
+        setNetworks([]);
+        triggerToast('No Wi-Fi networks found nearby', 'info');
+      }
+    } catch (err) {
+      console.error('Scan failed:', err);
+      setNetworks([]);
+      triggerToast('Unable to scan Wi-Fi networks', 'warn');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // Trigger scan when entering SSIDs step
+  useEffect(() => {
+    if (step === 'ssids' || activeModal === 'add_ssid') {
+      handleRefreshNetworks();
+    }
+  }, [step, activeModal]);
+
   const toggleStagingSSID = (ssid: string) => {
     if (selectedSSIDsStaging.includes(ssid)) {
       setSelectedSSIDsStaging(selectedSSIDsStaging.filter((s) => s !== ssid));
@@ -106,90 +158,66 @@ export default function App() {
     }
   };
 
-  // Edge of network detection simulation
-  const checkSignalThreshold = (signal: number) => {
-    setCurrentSignal(signal);
-    if (signal <= edgeThreshold) {
-      setLedState('orange');
-      if (vanguardEnabled) {
-        triggerToast(`[Vanguard Alert] Weak Wi-Fi (${signal}% ≤ ${edgeThreshold}%). Pre-buffering roaming session.`, 'warn');
-      } else {
-        triggerToast(`Edge of network reached (${signal}% ≤ ${edgeThreshold}%).`, 'warn');
-      }
-    } else if (!captiveBypassEnabled) {
-      setLedState('red');
-    } else {
-      setLedState('green');
-    }
-  };
-
-  // Compute LED info
   const getLEDInfo = () => {
     switch (ledState) {
       case 'green':
         return {
           colorClass: 'bg-[#23A55A] shadow-[0_0_12px_#23A55A]',
-          text: '<Connected>',
-          subtext: 'Connected & Online',
+          text: statusTitle || '<Connected>',
+          subtext: statusSub || 'Connected & Online',
           desc: 'Connected & Online',
         };
       case 'red':
         return {
           colorClass: 'bg-[#F23F43] shadow-[0_0_12px_#F23F43]',
-          text: '<Disconnected>',
-          subtext: 'Disconnected / Offline',
+          text: statusTitle || '<Disconnected>',
+          subtext: statusSub || 'Disconnected / Offline',
           desc: 'Disconnected / Offline',
         };
       case 'yellow':
         return {
           colorClass: 'bg-[#FEE75C] shadow-[0_0_12px_#FEE75C]',
-          text: '<In Progress>',
-          subtext: 'Authenticating…',
+          text: statusTitle || '<In Progress>',
+          subtext: statusSub || 'Authenticating…',
           desc: 'Authenticating with Portal…',
         };
       case 'orange':
         return {
           colorClass: 'bg-[#FF9900] shadow-[0_0_12px_#FF9900]',
-          text: '<Network Edge>',
-          subtext: "You're at the edge",
+          text: statusTitle || '<Network Edge>',
+          subtext: statusSub || "You're at the edge",
           desc: "You're at the edge",
         };
     }
   };
 
   const ledInfo = getLEDInfo();
+  const activeCred = credSets.find((c) => c.id === activeCredSetId) || credSets[0];
 
   return (
-    <div className="min-h-screen bg-[#000000] text-[#E6EAED] flex flex-col items-center justify-center p-4 selection:bg-[#00A8FF] selection:text-black">
-      {/* Outer App Container simulating AMOLED Desktop Window */}
-      <div className="w-full max-w-[430px] bg-[#000000] border border-[#1E1F22] rounded-xl shadow-2xl overflow-hidden flex flex-col relative min-h-[580px]">
+    <div className="w-full h-screen bg-[#000000] text-[#E6EAED] flex flex-col items-center justify-center relative selection:bg-[#00A8FF] selection:text-black font-sans overflow-hidden">
+      <div className="w-full max-w-[430px] h-[580px] bg-[#000000] border border-[#1E1F22] rounded-xl shadow-2xl flex flex-col relative overflow-hidden">
         {/* Subtle Window Header */}
-        <div className="bg-[#0D0E10] px-4 py-2.5 border-b border-[#1E1F22] flex items-center justify-between">
+        <div className="bg-[#0D0E10] px-4 py-2.5 border-b border-[#1E1F22] flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#2B2D31]" />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#2B2D31]" />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#2B2D31]" />
-            <span className="text-[11px] font-mono text-[#7A828A] tracking-wider ml-1">captive-bypass</span>
+            <Shield className="w-4 h-4 text-[#00A8FF]" />
+            <span className="text-xs font-semibold text-white tracking-wide">Captive Bypass</span>
           </div>
-          {step === 'main' && (
-            <button
-              onClick={() => handleAntiSpam(() => setStep('permissions'))}
-              className="text-[10px] text-[#7A828A] hover:text-white px-2 py-0.5 rounded border border-[#2B2D31] hover:border-white/40 transition-colors"
-              title="Reset and review wizard"
-            >
-              Rerun Setup
-            </button>
-          )}
+          <div className="flex space-x-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-[#1E1F22]" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[#1E1F22]" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[#1E1F22]" />
+          </div>
         </div>
-
+        <div className="flex-1 flex flex-col relative overflow-hidden">
         {/* ========================================================================= */}
         {/* SCREEN 1: WIZARD PERMISSIONS / TRUST                                      */}
         {/* ========================================================================= */}
         {step === 'permissions' && (
           <div className="p-6 flex-1 flex flex-col justify-between">
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 rounded-lg bg-[#00A8FF]/10 flex items-center justify-center text-[#00A8FF]">
+                <div className="w-9 h-9 rounded-lg bg-[#00A8FF]/10 flex items-center justify-center text-[#00A8FF] flex-shrink-0">
                   <Shield className="w-5 h-5" />
                 </div>
                 <div>
@@ -198,25 +226,37 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Trust Box */}
+              {/* Warning-first Standalone Binary Trust Box */}
               <div className="border border-[#1E1F22] bg-[#0A0B0D] rounded-lg p-4 space-y-3 text-xs text-[#949BA4] leading-relaxed">
                 <p>
-                  <strong className="text-white">Why permissions matter:</strong> On macOS and Linux, reading active
-                  Wi-Fi SSIDs and observing network transitions requires local interface permissions.
+                  <strong className="text-white">Unsigned Standalone Binary:</strong> captive-bypass is shipped as an
+                  open-source standalone executable without commercial developer certificates.
                 </p>
+
+                <div className="space-y-1.5 text-[11px] bg-[#121316] p-2.5 rounded border border-[#2B2D31]">
+                  <div>
+                    <strong className="text-white">macOS:</strong> Right-click the app &gt; <em>Open</em>, or allow via{' '}
+                    <em>System Settings &gt; Privacy &amp; Security &gt; Open Anyway</em>.
+                  </div>
+                  <div>
+                    <strong className="text-white">Windows:</strong> Click <em>More info</em> &gt; <em>Run anyway</em>{' '}
+                    past SmartScreen.
+                  </div>
+                </div>
+
                 <p>
-                  captive-bypass is 100% open-source, runs fully locally, and never exposes credentials outside of the
-                  official portal handshake.
+                  100% open-source, runs entirely locally, and never exposes credentials outside of the official portal
+                  handshake.
                 </p>
+
                 <div className="pt-1 flex items-center space-x-3 text-[11px]">
-                  <a
-                    href="https://github.com/achar-pranav/captive-bypass"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[#00A8FF] hover:underline"
+                  <button
+                    type="button"
+                    onClick={() => api.openURL('https://github.com/achar-pranav/captive-bypass')}
+                    className="text-[#00A8FF] hover:underline cursor-pointer flex items-center space-x-1"
                   >
-                    View Source on GitHub ↗
-                  </a>
+                    <span>View Source on GitHub ↗</span>
+                  </button>
                   <span className="text-[#2B2D31]">•</span>
                   <span className="text-[#7A828A]">Zero Root Required</span>
                 </div>
@@ -232,7 +272,13 @@ export default function App() {
                 Continue
               </button>
               <button
-                onClick={() => handleAntiSpam(() => setStep('main'))}
+                onClick={() =>
+                  handleAntiSpam(() => {
+                    // Skip setup without saving any dummy credentials
+                    setStep('main');
+                    triggerToast('Setup skipped. No credentials saved.', 'info');
+                  })
+                }
                 className="w-full py-2.5 px-4 rounded-lg bg-black text-white text-sm border border-white/20 hover:border-white/40 hover:bg-white/5 active:bg-white/10 transition-all"
               >
                 Skip
@@ -271,7 +317,7 @@ export default function App() {
                     type="text"
                     value={formUsername}
                     onChange={(e) => setFormUsername(e.target.value)}
-                    placeholder="PES1UG23CS..."
+                    placeholder="e.g. PES1UG23CS001"
                     className="w-full bg-[#0E1012] border border-[#2B2D31] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00A8FF] transition-colors"
                   />
                 </div>
@@ -283,7 +329,7 @@ export default function App() {
                       type={showPassword ? 'text' : 'password'}
                       value={formPassword}
                       onChange={(e) => setFormPassword(e.target.value)}
-                      placeholder="Portal Password"
+                      placeholder="Portal password"
                       className="w-full bg-[#0E1012] border border-[#2B2D31] rounded-lg pl-3 pr-10 py-2 text-sm text-white focus:outline-none focus:border-[#00A8FF] transition-colors"
                     />
                     <button
@@ -301,7 +347,7 @@ export default function App() {
               {/* Bottom Disclaimer */}
               <div className="pt-2">
                 <p className="text-[11px] text-[#7A828A] leading-relaxed italic border-l-2 border-[#00A8FF]/40 pl-2.5">
-                  Passwords are never stored in plaintext. We use OS hardware fingerprinting and AES-GCM encryption to
+                  Passwords are never stored in plaintext. Encrypted locally with machine-derived keys (AES-GCM) to
                   prevent theft by copy.
                 </p>
               </div>
@@ -319,22 +365,28 @@ export default function App() {
               </button>
               <button
                 onClick={() =>
-                  handleAntiSpam(() => {
+                  handleAntiSpam(async () => {
                     if (!formUsername.trim()) {
                       triggerToast('Please enter your SRN username', 'error');
                       return;
                     }
-                    const newId = `cred-${Date.now()}`;
-                    const newSet: CredSet = {
-                      id: newId,
-                      name: formCredName.trim() || 'default',
-                      username: formUsername.trim(),
-                      password: formPassword,
-                    };
-                    setCredSets([newSet]);
-                    setActiveCredSetId(newId);
-                    setStep('ssids');
-                    triggerToast('Credentials encrypted & saved', 'success');
+                    const profileName = formCredName.trim() || 'default';
+                    try {
+                      await api.saveCreds(profileName, formUsername.trim(), formPassword, true);
+                      const newSet: CredSet = {
+                        id: profileName,
+                        name: profileName,
+                        username: formUsername.trim(),
+                        password: formPassword,
+                      };
+                      setCredSets([newSet]);
+                      setActiveCredSetId(profileName);
+                      setStep('ssids');
+                      triggerToast('Credentials encrypted & saved', 'success');
+                    } catch (err) {
+                      console.error('Error saving creds:', err);
+                      triggerToast('Error saving credentials', 'error');
+                    }
                   })
                 }
                 className="w-full py-2.5 px-4 rounded-lg bg-[#00A8FF] text-black font-semibold text-sm hover:bg-[#33BAFF] active:bg-[#0090DC] transition-colors"
@@ -367,8 +419,8 @@ export default function App() {
                     disabled={isScanning}
                     className="flex items-center space-x-1 text-xs text-[#00A8FF] hover:text-[#33BAFF] px-2 py-0.5 rounded border border-[#00A8FF]/30 hover:border-[#00A8FF] transition-colors"
                   >
-                    <span>Networks</span>
-                    <span className={isScanning ? 'animate-spin' : ''}>⟳</span>
+                    <span>Scan</span>
+                    <RefreshCw className={`w-3 h-3 ${isScanning ? 'animate-spin' : ''}`} />
                   </button>
                 </div>
 
@@ -399,11 +451,17 @@ export default function App() {
                       </div>
                     );
                   })}
+
+                  {networks.length === 0 && !isScanning && (
+                    <div className="p-4 text-center border border-dashed border-[#1E1F22] rounded-lg text-xs text-[#7A828A]">
+                      No networks found. Click Scan to search for nearby Wi-Fi.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Back & Done Buttons */}
+            {/* Back & Continue Buttons */}
             <div className="space-y-2.5 pt-6">
               <button
                 type="button"
@@ -421,20 +479,120 @@ export default function App() {
                       return;
                     }
                     setSavedSSIDs(selectedSSIDsStaging);
-                    setStep('main');
-                    triggerToast('Setup finished! captive-bypass active.', 'success');
+                    setStep('ready');
                   })
                 }
                 className="w-full py-2.5 px-4 rounded-lg bg-[#00A8FF] text-black font-semibold text-sm hover:bg-[#33BAFF] active:bg-[#0090DC] transition-colors"
               >
-                Done
+                Continue
               </button>
             </div>
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* SCREEN 4: MAIN MENU                                                       */}
+        {/* SCREEN 4: WIZARD READY CONFIRMATION (#44)                                 */}
+        {/* ========================================================================= */}
+        {step === 'ready' && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="p-6 flex-1 flex flex-col justify-between"
+          >
+            <div className="space-y-5">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-[#23A55A]/15 border border-[#23A55A]/30 flex items-center justify-center text-[#23A55A] flex-shrink-0">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h1 className="text-lg font-bold text-white tracking-tight">Ready to Auto-Login</h1>
+                  <p className="text-xs text-[#7A828A]">Credentials and trigger networks configured</p>
+                </div>
+              </div>
+
+              {/* Ready Summary Card */}
+              <div className="border border-[#1E1F22] bg-[#0A0B0D] rounded-lg p-4 space-y-3 text-xs">
+                <div className="flex items-center justify-between border-b border-[#1E1F22] pb-2">
+                  <span className="text-[#7A828A]">Active Profile:</span>
+                  <span className="text-white font-mono font-semibold">{activeCred?.name || 'default'}</span>
+                </div>
+
+                <div className="flex items-center justify-between border-b border-[#1E1F22] pb-2">
+                  <span className="text-[#7A828A]">SRN Username:</span>
+                  <span className="text-[#00A8FF] font-mono">{activeCred?.username || formUsername || 'Configured'}</span>
+                </div>
+
+                <div>
+                  <span className="text-[#7A828A] block mb-1.5">Monitored Networks ({selectedSSIDsStaging.length}):</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedSSIDsStaging.map((s) => (
+                      <span
+                        key={s}
+                        className="inline-flex items-center text-[10px] font-mono bg-[#141619] border border-[#2B2D31] text-[#E6EAED] px-2 py-0.5 rounded"
+                      >
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs text-[#7A828A] leading-relaxed">
+                You can enable auto-login now to test authentication immediately, or head straight to the main menu.
+              </p>
+            </div>
+
+            {/* Final Setup Action Buttons */}
+            <div className="space-y-2.5 pt-6">
+              <button
+                onClick={() =>
+                  handleAntiSpam(async () => {
+                    try {
+                      await api.toggleAutoLogin(true);
+                      await api.finishWizard(selectedSSIDsStaging);
+                      setCaptiveBypassEnabled(true);
+                      setStep('main');
+                      triggerToast(`Auto-login enabled with profile '${activeCred?.name || 'default'}'.`, 'success');
+                      // Trigger background login check
+                      api.manualLogin().then((res) => {
+                        if (res) triggerToast(res, 'info');
+                      }).catch(() => {});
+                    } catch (err) {
+                      console.error('Ready screen enable failed:', err);
+                      setStep('main');
+                    }
+                  })
+                }
+                className="w-full py-2.5 px-4 rounded-lg bg-[#23A55A] text-black font-semibold text-sm hover:bg-[#2bc26a] active:bg-[#1f9350] transition-colors"
+              >
+                Enable Auto-Login
+              </button>
+              <button
+                onClick={() =>
+                  handleAntiSpam(async () => {
+                    try {
+                      await api.toggleAutoLogin(false);
+                      await api.finishWizard(selectedSSIDsStaging);
+                      setCaptiveBypassEnabled(false);
+                      setStep('main');
+                      triggerToast('Setup finished. Auto-login is currently off.', 'info');
+                    } catch (err) {
+                      console.error('Ready screen main menu fallback failed:', err);
+                      setStep('main');
+                    }
+                  })
+                }
+                className="w-full py-2.5 px-4 rounded-lg bg-black text-white text-sm border border-white/20 hover:border-white/40 hover:bg-white/5 active:bg-white/10 transition-all"
+              >
+                Main Menu
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* SCREEN 5: MAIN MENU                                                       */}
         {/* ========================================================================= */}
         {step === 'main' && (
           <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
@@ -450,40 +608,19 @@ export default function App() {
                   <span className="text-xs font-bold text-white tracking-wide font-mono whitespace-nowrap">
                     {ledInfo.text}
                   </span>
-                  <span className="text-[11px] text-[#7A828A] font-mono truncate leading-tight">
-                    {ledInfo.subtext}
-                  </span>
+                  <span className="text-[11px] text-[#7A828A] truncate font-mono">{ledInfo.subtext}</span>
                 </div>
               </div>
 
-              {/* Status State Cycler for interactive testing */}
-              <button
-                onClick={() => {
-                  const states: LEDState[] = ['green', 'red', 'yellow', 'orange'];
-                  const next = states[(states.indexOf(ledState) + 1) % states.length];
-                  setLedState(next);
-                  if (next === 'orange') {
-                    if (vanguardEnabled) {
-                      triggerToast('[Vanguard Alert] Weak Wi-Fi detected. Session pre-caching.', 'warn');
-                    } else {
-                      triggerToast('Edge of network reached.', 'warn');
-                    }
-                  } else if (next === 'green') {
-                    triggerToast('Portal authenticated & connected', 'success');
-                  } else if (next === 'red') {
-                    triggerToast('Disconnected from portal', 'error');
-                  } else {
-                    triggerToast('Authenticating with Cyberoam portal...', 'info');
-                  }
-                }}
-                className="text-[10px] text-[#7A828A] hover:text-white px-1.5 py-0.5 rounded border border-[#2B2D31] hover:border-white/40 transition-colors"
-                title="Click to cycle LED states"
-              >
-                Test LED
-              </button>
+              {/* Dev-only affordance */}
+              {import.meta.env.DEV && (
+                <span className="text-[9px] font-mono text-[#00A8FF] border border-[#00A8FF]/30 px-1.5 py-0.5 rounded">
+                  DEV
+                </span>
+              )}
             </div>
 
-            {/* Two Options: Networks and Creds (Title cards one below the other) */}
+            {/* Two Options: Networks and Creds */}
             <div className="space-y-3">
               {/* Option 1: Networks */}
               <div className="bg-[#0A0C0E] border border-[#1E1F22] rounded-lg p-3.5">
@@ -576,62 +713,73 @@ export default function App() {
               </div>
             </div>
 
-            {/* Bottom Controls: Two Checkboxes */}
+            {/* Bottom Controls: Master Toggle & Vanguard Toggle */}
             <div className="border-t border-[#1E1F22] pt-3.5 space-y-2.5">
-              <label className="flex items-center space-x-2.5 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={captiveBypassEnabled}
-                  onChange={(e) => {
-                    setCaptiveBypassEnabled(e.target.checked);
-                    if (!e.target.checked) {
-                      setLedState('red');
-                      triggerToast('captive-bypass disabled', 'warn');
-                    } else {
-                      setLedState('green');
-                      triggerToast('captive-bypass enabled', 'success');
-                    }
-                  }}
-                  className="w-4 h-4 rounded accent-[#00A8FF] cursor-pointer"
-                />
-                <span className="text-xs text-white">Enable/Disable the captive-bypass</span>
+              <label className="flex items-center justify-between cursor-pointer select-none">
+                <span className="text-xs text-white font-medium">Enable/Disable the captive-bypass</span>
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    className="peer sr-only"
+                    checked={captiveBypassEnabled}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setCaptiveBypassEnabled(checked);
+                      api.toggleAutoLogin(checked);
+                      if (!checked) {
+                        triggerToast('captive-bypass disabled', 'warn');
+                      } else {
+                        triggerToast('captive-bypass enabled', 'success');
+                      }
+                    }}
+                  />
+                  <div className="block h-6 w-10 rounded-full bg-[#1E1F22] transition-colors peer-checked:bg-[#00A8FF]"></div>
+                  <div className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform peer-checked:translate-x-4 shadow-sm"></div>
+                </div>
               </label>
 
-              <label className="flex items-center space-x-2.5 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={vanguardEnabled}
-                  onChange={(e) => {
-                    setVanguardEnabled(e.target.checked);
-                    triggerToast(
-                      e.target.checked ? 'Vanguard telemetry enabled' : 'Vanguard telemetry disabled',
-                      'info'
-                    );
-                  }}
-                  className="w-4 h-4 rounded accent-[#00A8FF] cursor-pointer"
-                />
-                <span className="text-xs text-white">Enable/Disable Vanguard(experimental)</span>
+              <label className="flex items-center justify-between cursor-pointer select-none">
+                <span className="text-xs text-white font-medium">Enable/Disable Vanguard (experimental)</span>
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    className="peer sr-only"
+                    checked={vanguardEnabled}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setVanguardEnabled(checked);
+                      api.toggleVanguard(checked);
+                      triggerToast(
+                        checked ? 'Vanguard telemetry enabled' : 'Vanguard telemetry disabled',
+                        'info'
+                      );
+                    }}
+                  />
+                  <div className="block h-6 w-10 rounded-full bg-[#1E1F22] transition-colors peer-checked:bg-[#00A8FF]"></div>
+                  <div className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform peer-checked:translate-x-4 shadow-sm"></div>
+                </div>
               </label>
-            </div>
-
-            {/* Signal & Threshold Testing Strip */}
-            <div className="bg-[#0A0B0D] border border-[#1E1F22] rounded-lg p-2.5 text-[11px] space-y-1.5">
-              <div className="flex items-center justify-between text-[#7A828A]">
-                <span>Edge threshold: {edgeThreshold}%</span>
-                <span className="font-mono text-[#00A8FF]">--set-threshold {edgeThreshold}</span>
-              </div>
-              <input
-                type="range"
-                min="1"
-                max="100"
-                value={edgeThreshold}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  setEdgeThreshold(val);
-                  checkSignalThreshold(currentSignal);
-                }}
-                className="w-full accent-[#00A8FF] h-1.5 bg-[#1E1F22] rounded-lg appearance-none cursor-pointer"
-              />
+              
+              {vanguardEnabled && (
+                <div className="bg-[#0A0B0D] border border-[#1E1F22] rounded-lg p-2.5 text-[11px] space-y-1.5 mt-2 transition-all">
+                  <div className="flex items-center justify-between text-[#7A828A]">
+                    <span>Edge threshold: {edgeThreshold}%</span>
+                    <span className="font-mono text-[#00A8FF]">--set-threshold {edgeThreshold}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="100"
+                    value={edgeThreshold}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setEdgeThreshold(val);
+                      api.setThreshold(val);
+                    }}
+                    className="w-full accent-[#00A8FF] h-1.5 bg-[#1E1F22] rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -640,7 +788,7 @@ export default function App() {
         {/* MODAL 1: ADD NETWORK                                                      */}
         {/* ========================================================================= */}
         {activeModal === 'add_ssid' && (
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-30 p-5 flex flex-col justify-between animate-in fade-in duration-150">
+          <div className="absolute inset-0 bg-black/95 z-30 p-5 flex flex-col justify-between animate-in fade-in duration-150">
             <div className="space-y-3">
               <div className="flex items-center justify-between border-b border-[#1E1F22] pb-2">
                 <span className="text-sm font-bold text-white">Add SSID</span>
@@ -649,19 +797,21 @@ export default function App() {
                   disabled={isScanning}
                   className="flex items-center space-x-1 text-xs text-[#00A8FF] hover:text-[#33BAFF] px-2 py-0.5 rounded border border-[#00A8FF]/30 hover:border-[#00A8FF]"
                 >
-                  <span>Networks</span>
-                  <span className={isScanning ? 'animate-spin' : ''}>⟳</span>
+                  <span>Scan</span>
+                  <RefreshCw className={`w-3 h-3 ${isScanning ? 'animate-spin' : ''}`} />
                 </button>
               </div>
 
-              <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
+              <p className="text-[11px] text-[#7A828A]">Check networks to register for automatic login.</p>
+
+              <div className="space-y-1.5 max-h-[360px] overflow-y-auto pr-1">
                 {networks.map((net) => {
                   const checked = selectedSSIDsStaging.includes(net.ssid);
                   return (
                     <div
                       key={net.ssid}
                       onClick={() => toggleStagingSSID(net.ssid)}
-                      className={`flex items-center justify-between p-2.5 rounded-lg border cursor-pointer ${
+                      className={`flex items-center justify-between p-2.5 rounded-lg border cursor-pointer transition-colors ${
                         checked
                           ? 'bg-[#00A8FF]/10 border-[#00A8FF]/60 text-white'
                           : 'bg-[#0B0C0E] border-[#1E1F22] text-[#949BA4] hover:border-white/20'
@@ -672,7 +822,7 @@ export default function App() {
                           type="checkbox"
                           checked={checked}
                           onChange={() => {}}
-                          className="w-4 h-4 rounded accent-[#00A8FF]"
+                          className="w-4 h-4 rounded accent-[#00A8FF] cursor-pointer"
                         />
                         <span className="text-xs font-mono font-medium text-white">{net.ssid}</span>
                       </div>
@@ -680,21 +830,30 @@ export default function App() {
                     </div>
                   );
                 })}
+
+                {networks.length === 0 && !isScanning && (
+                  <div className="p-4 text-center border border-dashed border-[#1E1F22] rounded-lg text-xs text-[#7A828A]">
+                    No networks discovered. Click Scan above.
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="flex items-center space-x-2 pt-4">
               <button
                 onClick={() =>
-                  handleAntiSpam(() => {
-                    setSavedSSIDs(selectedSSIDsStaging);
+                  handleAntiSpam(async () => {
+                    for (const s of selectedSSIDsStaging) {
+                      await api.addSSID(s);
+                    }
+                    setSavedSSIDs([...selectedSSIDsStaging]);
                     setActiveModal('none');
-                    triggerToast('Recognized networks updated', 'success');
+                    triggerToast('Registered networks updated', 'success');
                   })
                 }
                 className="flex-1 py-2 px-3 rounded-lg bg-[#00A8FF] text-black font-semibold text-xs hover:bg-[#33BAFF]"
               >
-                Save
+                Apply Selection
               </button>
               <button
                 onClick={() => setActiveModal('none')}
@@ -707,36 +866,36 @@ export default function App() {
         )}
 
         {/* ========================================================================= */}
-        {/* MODAL 2: MANAGE NETWORKS (with red square trash button)                   */}
+        {/* MODAL 2: MANAGE SAVED SSIDs (Red Square Trash Button)                     */}
         {/* ========================================================================= */}
         {activeModal === 'manage_ssid' && (
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-30 p-5 flex flex-col justify-between animate-in fade-in duration-150">
+          <div className="absolute inset-0 bg-black/95 z-30 p-5 flex flex-col justify-between animate-in fade-in duration-150">
             <div className="space-y-3">
               <div className="border-b border-[#1E1F22] pb-2 flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-white">Manage Networks</h3>
-                  <p className="text-[11px] text-[#7A828A]">Delete saved SSIDs (in or out of range)</p>
+                  <h3 className="text-sm font-bold text-white">Manage SSIDs</h3>
+                  <p className="text-[11px] text-[#7A828A]">Remove registered networks</p>
                 </div>
                 <span className="text-xs font-mono text-[#00A8FF]">{savedSSIDs.length} saved</span>
               </div>
 
-              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
                 {savedSSIDs.map((ssid) => (
                   <div
                     key={ssid}
                     className="flex items-center justify-between p-2.5 rounded-lg bg-[#0B0C0E] border border-[#1E1F22]"
                   >
                     <span className="text-xs font-mono text-white">{ssid}</span>
-                    {/* Small red square trash button */}
                     <button
                       onClick={() =>
-                        handleAntiSpam(() => {
+                        handleAntiSpam(async () => {
+                          await api.removeSSID(ssid);
                           const updated = savedSSIDs.filter((s) => s !== ssid);
                           setSavedSSIDs(updated);
                           triggerToast(`Deleted network: ${ssid}`, 'info');
                         })
                       }
-                      className="w-7 h-7 bg-[#F23F43] hover:bg-[#FF4D50] active:bg-[#D8363A] rounded flex items-center justify-center text-white transition-colors"
+                      className="w-7 h-7 bg-[#F23F43] hover:bg-[#FF4D50] active:bg-[#D8363A] rounded flex items-center justify-center text-white transition-colors cursor-pointer"
                       title="Delete network"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -745,7 +904,7 @@ export default function App() {
                 ))}
 
                 {savedSSIDs.length === 0 && (
-                  <div className="text-xs text-[#7A828A] italic py-4 text-center">No saved networks left.</div>
+                  <div className="text-xs text-[#7A828A] italic py-6 text-center">No saved networks left.</div>
                 )}
               </div>
             </div>
@@ -765,7 +924,7 @@ export default function App() {
         {/* MODAL 3: ADD CREDS (3 fields + disclaimer + save)                          */}
         {/* ========================================================================= */}
         {activeModal === 'add_cred' && (
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-30 p-5 flex flex-col justify-between animate-in fade-in duration-150">
+          <div className="absolute inset-0 bg-black/95 z-30 p-5 flex flex-col justify-between animate-in fade-in duration-150">
             <div className="space-y-3">
               <div>
                 <h3 className="text-sm font-bold text-white">Add Credential Set</h3>
@@ -825,22 +984,27 @@ export default function App() {
             <div className="flex items-center space-x-2 pt-4">
               <button
                 onClick={() =>
-                  handleAntiSpam(() => {
+                  handleAntiSpam(async () => {
                     if (!formUsername.trim()) {
                       triggerToast('Username (SRN) required', 'error');
                       return;
                     }
-                    const newId = `cred-${Date.now()}`;
-                    const newSet: CredSet = {
-                      id: newId,
-                      name: formCredName.trim() || `profile-${credSets.length + 1}`,
-                      username: formUsername.trim(),
-                      password: formPassword,
-                    };
-                    setCredSets([...credSets, newSet]);
-                    setActiveCredSetId(newId);
-                    setActiveModal('none');
-                    triggerToast(`Added & activated: ${newSet.name}`, 'success');
+                    const profileName = formCredName.trim() || `profile-${credSets.length + 1}`;
+                    try {
+                      await api.saveCreds(profileName, formUsername.trim(), formPassword, true);
+                      const newSet: CredSet = {
+                        id: profileName,
+                        name: profileName,
+                        username: formUsername.trim(),
+                        password: formPassword,
+                      };
+                      setCredSets([...credSets, newSet]);
+                      setActiveCredSetId(profileName);
+                      setActiveModal('none');
+                      triggerToast(`Added & activated: ${profileName}`, 'success');
+                    } catch (err) {
+                      triggerToast('Failed to save credentials', 'error');
+                    }
                   })
                 }
                 className="flex-1 py-2 px-3 rounded-lg bg-[#00A8FF] text-black font-semibold text-xs hover:bg-[#33BAFF]"
@@ -858,10 +1022,10 @@ export default function App() {
         )}
 
         {/* ========================================================================= */}
-        {/* MODAL 4: MANAGE CREDS (Radio button + Edit pencil + red trash button)     */}
+        {/* MODAL 4: MANAGE CREDS (Radio + Edit pencil + red trash button) (#39)      */}
         {/* ========================================================================= */}
         {activeModal === 'manage_cred' && (
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-30 p-5 flex flex-col justify-between animate-in fade-in duration-150">
+          <div className="absolute inset-0 bg-black/95 z-30 p-5 flex flex-col justify-between animate-in fade-in duration-150">
             <div className="space-y-3">
               <div className="border-b border-[#1E1F22] pb-2 flex items-center justify-between">
                 <div>
@@ -871,7 +1035,7 @@ export default function App() {
                 <span className="text-xs font-mono text-[#00A8FF]">{credSets.length} sets</span>
               </div>
 
-              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
                 {credSets.map((cred) => {
                   const isActive = cred.id === activeCredSetId;
                   return (
@@ -879,6 +1043,7 @@ export default function App() {
                       key={cred.id}
                       onClick={() => {
                         setActiveCredSetId(cred.id);
+                        api.setActiveCred(cred.name);
                         triggerToast(`Switched active profile to ${cred.name}`, 'info');
                       }}
                       className={`flex items-center justify-between p-2.5 rounded-lg border cursor-pointer transition-colors ${
@@ -901,7 +1066,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Edit Pencil & Red Square Trash Buttons */}
+                      {/* Edit Pencil & Red Trash Buttons */}
                       <div className="flex items-center space-x-1.5">
                         <button
                           onClick={(e) => {
@@ -923,16 +1088,18 @@ export default function App() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleAntiSpam(() => {
+                            handleAntiSpam(async () => {
+                              await api.deleteCreds(cred.name);
                               const updated = credSets.filter((c) => c.id !== cred.id);
                               setCredSets(updated);
                               if (updated.length === 0) {
                                 setActiveCredSetId('');
-                                setLedState('red');
-                                triggerToast('Warning: All credentials deleted. Auto-login paused.', 'warn');
+                                // (#39: Do not auto-pause; warn instead of deciding)
+                                triggerToast('No credentials stored. Add credentials to enable auto-login.', 'warn');
                               } else {
                                 if (isActive) {
                                   setActiveCredSetId(updated[0].id);
+                                  api.setActiveCred(updated[0].name);
                                 }
                                 triggerToast(`Deleted credential set: ${cred.name}`, 'info');
                               }
@@ -949,8 +1116,8 @@ export default function App() {
                 })}
 
                 {credSets.length === 0 && (
-                  <div className="text-xs text-[#7A828A] italic py-4 text-center">
-                    No credentials stored. Click Add (+) on the main screen.
+                  <div className="text-xs text-[#7A828A] italic py-6 text-center">
+                    No credentials stored. Click Add on the main screen.
                   </div>
                 )}
               </div>
@@ -968,10 +1135,10 @@ export default function App() {
         )}
 
         {/* ========================================================================= */}
-        {/* MODAL 5: EDIT CREDS (with password eye toggle)                            */}
+        {/* MODAL 5: EDIT CREDS                                                       */}
         {/* ========================================================================= */}
         {activeModal === 'edit_cred' && (
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-30 p-5 flex flex-col justify-between animate-in fade-in duration-150">
+          <div className="absolute inset-0 bg-black/95 z-30 p-5 flex flex-col justify-between animate-in fade-in duration-150">
             <div className="space-y-3">
               <div>
                 <h3 className="text-sm font-bold text-white">Edit Credentials</h3>
@@ -1031,26 +1198,35 @@ export default function App() {
             <div className="flex items-center space-x-2 pt-4">
               <button
                 onClick={() =>
-                  handleAntiSpam(() => {
+                  handleAntiSpam(async () => {
                     if (!formUsername.trim()) {
                       triggerToast('Username (SRN) required', 'error');
                       return;
                     }
                     const updatedName = formCredName.trim() || 'default';
-                    setCredSets(
-                      credSets.map((c) =>
-                        c.id === editingCredId
-                          ? {
-                              ...c,
-                              name: updatedName,
-                              username: formUsername.trim(),
-                              password: formPassword,
-                            }
-                          : c
-                      )
-                    );
-                    setActiveModal('manage_cred');
-                    triggerToast(`Updated credentials: ${updatedName}`, 'success');
+                    try {
+                      await api.saveCreds(updatedName, formUsername.trim(), formPassword, activeCredSetId === editingCredId);
+                      setCredSets(
+                        credSets.map((c) =>
+                          c.id === editingCredId
+                            ? {
+                                ...c,
+                                id: updatedName,
+                                name: updatedName,
+                                username: formUsername.trim(),
+                                password: formPassword,
+                              }
+                            : c
+                        )
+                      );
+                      if (activeCredSetId === editingCredId) {
+                        setActiveCredSetId(updatedName);
+                      }
+                      setActiveModal('manage_cred');
+                      triggerToast(`Updated credentials: ${updatedName}`, 'success');
+                    } catch (err) {
+                      triggerToast('Failed to update credentials', 'error');
+                    }
                   })
                 }
                 className="flex-1 py-2 px-3 rounded-lg bg-[#00A8FF] text-black font-semibold text-xs hover:bg-[#33BAFF]"
@@ -1067,8 +1243,9 @@ export default function App() {
           </div>
         )}
       </div>
+      </div>
 
-      {/* Bottom Toast Popup (spawns from bottom, fades on click) */}
+      {/* Bottom Toast Popup */}
       <BottomToast toast={toast} onDismiss={dismissToast} />
     </div>
   );

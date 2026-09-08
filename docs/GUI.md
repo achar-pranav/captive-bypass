@@ -88,7 +88,7 @@ Located at the top left of the interface:
   - **[Add]**: Opens the 3-field credential entry dialog (Name, Username, Password with eye toggle) with encryption disclaimer.
   - **[Manage]**: Opens the profile management dialog with radio buttons to switch the active set, an **Edit pencil button (`✏️`)** to update credentials/passwords, and trash buttons (`🗑`) to delete profiles.
 
-### Bottom Preference Checkboxes
+### Bottom Preference Sliders
 1. `[x] Enable/Disable the captive-bypass` (pauses or resumes auto-login).
 2. `[x] Enable/Disable Vanguard(experimental)` (toggles edge-of-network telemetry and proactive session retention).
 
@@ -98,8 +98,8 @@ Located at the top left of the interface:
 
 ### Standard Go Build (Production)
 ```bash
-go build -o captive-bypass .
-./captive-bypass gui
+wails build
+./build/bin/captive-bypass gui
 ```
 
 Note: `go build` requires the frontend to already be built (`npm run build` in `internal/gui/frontend`) so the embedded `frontend/dist` assets exist. `wails build` handles that step automatically.

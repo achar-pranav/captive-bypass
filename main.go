@@ -13,8 +13,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/achar-pranav/captive-bypass/internal/entrypoint"
 	"github.com/achar-pranav/captive-bypass/internal/config"
 	"github.com/achar-pranav/captive-bypass/internal/gui"
+	"github.com/achar-pranav/captive-bypass/internal/watchcmd"
 	"github.com/achar-pranav/captive-bypass/internal/install"
 	"github.com/achar-pranav/captive-bypass/internal/portal"
 	"github.com/achar-pranav/captive-bypass/internal/serve"
@@ -57,7 +59,7 @@ Environment overrides (advanced):
 
 func main() {
 	if len(os.Args) < 2 {
-		defaultEntrypoint()
+		entrypoint.DefaultEntrypoint()
 		return
 	}
 	arg := strings.TrimPrefix(os.Args[1], "--")
@@ -83,7 +85,7 @@ func main() {
 	case "event":
 		runEvent(os.Args[2:])
 	case "watch":
-		runWatch()
+		watchcmd.Run()
 	case "install":
 		must(install.Enable(), "install")
 		fmt.Println("Watcher installed.")

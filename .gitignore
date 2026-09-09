@@ -66,3 +66,6 @@ internal/gui/frontend/package.json.md5
 # local build output
 /captive-bypass
 sih-project/
+
+# Frontend build artifacts
+internal/gui/frontend/dist/

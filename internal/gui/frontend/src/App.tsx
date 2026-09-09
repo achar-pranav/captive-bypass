@@ -278,7 +278,12 @@ export default function App() {
         {/* SCREEN 2: WIZARD ADD CREDENTIALS                                          */}
         {/* ========================================================================= */}
         {step === 'credentials' && (
-          <div className="p-6 flex-1 flex flex-col justify-between">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="p-6 flex-1 flex flex-col justify-between"
+          >
             <div className="space-y-4">
               <div>
                 <h1 className="text-lg font-bold text-white tracking-tight">Add Credentials</h1>
@@ -371,7 +376,7 @@ export default function App() {
                 Continue
               </button>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* ========================================================================= */}

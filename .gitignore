@@ -58,7 +58,7 @@ dkms.conf
 !go.mod
 
 # Wails build output
-/build/
+/build/bin/
 
 # Wails-generated frontend fingerprint
 internal/gui/frontend/package.json.md5

@@ -386,6 +386,7 @@ func (a *App) FinishWizard(ssids []string) error {
 	defer a.mu.Unlock()
 
 	a.cfg.SSIDs = ssids
+	a.cfg.WizardDone = true
 	return config.Save(a.cfgPath, a.cfg)
 }
 

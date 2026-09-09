@@ -23,6 +23,7 @@ type Config struct {
 	Vanguard  bool      `json:"vanguard"`
 	Threshold int       `json:"threshold,omitempty"` // signal % threshold for edge of network (default 15)
 	Creds     credsBlob `json:"creds,omitempty"`
+	WizardDone bool      `json:"wizard_done,omitempty"`
 }
 
 type Timings struct {

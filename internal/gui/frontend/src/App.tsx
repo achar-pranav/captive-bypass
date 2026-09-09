@@ -201,7 +201,12 @@ export default function App() {
         {/* SCREEN 1: WIZARD PERMISSIONS / TRUST                                      */}
         {/* ========================================================================= */}
         {step === 'permissions' && (
-          <div className="p-6 flex-1 flex flex-col justify-between">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="p-6 flex-1 flex flex-col justify-between"
+          >
             <div className="space-y-4">
               <div className="flex items-center space-x-3">
                 <div className="w-9 h-9 rounded-lg bg-[#00A8FF]/10 flex items-center justify-center text-[#00A8FF] flex-shrink-0">
@@ -271,7 +276,7 @@ export default function App() {
                 Skip
               </button>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* ========================================================================= */}

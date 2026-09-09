@@ -161,7 +161,7 @@ func (a *App) GetState() AppState {
 		CredsCount:         len(a.cfg.CredSets),
 		RecognizedNetworks: a.cfg.SSIDs,
 		CredProfiles:       profiles,
-		IsFirstRun:         len(a.cfg.CredSets) == 0,
+		IsFirstRun:         !a.cfg.WizardDone && (len(a.cfg.CredSets) == 0 || len(a.cfg.SSIDs) == 0),
 	}
 }
 

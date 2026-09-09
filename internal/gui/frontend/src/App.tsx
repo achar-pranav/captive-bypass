@@ -587,7 +587,12 @@ export default function App() {
         {/* SCREEN 5: MAIN MENU                                                       */}
         {/* ========================================================================= */}
         {step === 'main' && (
-          <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="p-5 flex-1 flex flex-col justify-between space-y-4"
+          >
             {/* Top Status LED & Title */}
             <div className="flex items-center justify-between bg-[#0A0C0E] border border-[#1E1F22] px-3.5 py-2.5 rounded-lg">
               <div className="flex items-center space-x-3 min-w-0">
@@ -773,7 +778,7 @@ export default function App() {
                 </div>
               )}
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* ========================================================================= */}

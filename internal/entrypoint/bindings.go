@@ -8,7 +8,7 @@ import "github.com/achar-pranav/captive-bypass/internal/gui"
 // command line arguments. Under `bindings` or `desktop` (wails build) build tags,
 // it launches the GUI directly (enabling native .app / .exe launch without CLI args).
 // The CLI entry point in main.go still handles every explicit command.
-func DefaultEntrypoint() {
+func DefaultEntrypoint(usage func()) {
 	if err := gui.Run(); err != nil {
 		panic(err)
 	}

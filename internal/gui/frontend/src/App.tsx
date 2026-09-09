@@ -285,21 +285,11 @@ export default function App() {
                 <p className="text-xs text-[#7A828A]">Set up your PESU portal profile</p>
               </div>
 
-              {/* 3 Fields */}
+              {/* 2 Fields */}
               <div className="space-y-3 pt-2">
-                <div>
-                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">1. Credentials Name</label>
-                  <input
-                    type="text"
-                    value={formCredName}
-                    onChange={(e) => setFormCredName(e.target.value)}
-                    placeholder="default"
-                    className="w-full bg-[#0E1012] border border-[#2B2D31] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00A8FF] transition-colors"
-                  />
-                </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">2. Username (SRN)</label>
+                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">1. Username (SRN)</label>
                   <input
                     type="text"
                     value={formUsername}
@@ -310,7 +300,7 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">3. Password</label>
+                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">2. Password</label>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}

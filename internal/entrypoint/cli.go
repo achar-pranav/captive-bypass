@@ -2,7 +2,7 @@
 
 package entrypoint
 
-import "fmt"
+
 import "os"
 
 // defaultEntrypoint is called by main when the process is started with no

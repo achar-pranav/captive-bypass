@@ -268,7 +268,6 @@ func (a *App) GetCreds(username string) (map[string]string, error) {
 	}
 
 	return map[string]string{
-		"name":     name,
 		"username": user,
 		"password": pass,
 	}, nil

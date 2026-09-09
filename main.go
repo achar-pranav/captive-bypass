@@ -59,7 +59,7 @@ Environment overrides (advanced):
 
 func main() {
 	if len(os.Args) < 2 {
-		entrypoint.DefaultEntrypoint()
+		entrypoint.DefaultEntrypoint(usage)
 		return
 	}
 	arg := strings.TrimPrefix(os.Args[1], "--")

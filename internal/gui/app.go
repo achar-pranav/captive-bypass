@@ -144,7 +144,7 @@ func (a *App) GetState() AppState {
 		profiles = append(profiles, CredProfileInfo{
 			Name:     cs.Name,
 			Username: cs.Username,
-			IsActive: cs.Name == a.cfg.ActiveSet,
+			IsActive: cs.Username == a.cfg.ActiveSet,
 		})
 	}
 
@@ -193,7 +193,6 @@ func (a *App) ScanNetworks() ([]ScannedNetwork, error) {
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].Signal > out[j].Signal
 	})
-
 	return out, nil
 }
 
@@ -254,7 +253,7 @@ func (a *App) SaveCreds(name, username, password string, setActive bool) error {
 }
 
 // GetCreds decrypts and retrieves a credential profile for editing.
-func (a *App) GetCreds(name string) (map[string]string, error) {
+func (a *App) GetCreds(username string) (map[string]string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -263,7 +262,7 @@ func (a *App) GetCreds(name string) (map[string]string, error) {
 		return nil, fmt.Errorf("deriving hardware fingerprint: %w", err)
 	}
 
-	user, pass, err := a.cfg.GetCredsByName(fp, name)
+	user, pass, err := a.cfg.GetCredsByUsername(fp, username)
 	if err != nil {
 		return nil, err
 	}
@@ -276,17 +275,17 @@ func (a *App) GetCreds(name string) (map[string]string, error) {
 }
 
 // DeleteCreds removes a credential profile by name.
-func (a *App) DeleteCreds(name string) error {
+func (a *App) DeleteCreds(username string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if err := a.cfg.DeleteCredSet(name); err != nil {
+	if err := a.cfg.DeleteCredSet(username); err != nil {
 		return err
 	}
 
-	if a.cfg.ActiveSet == name || a.cfg.ActiveSet == "" {
+	if a.cfg.ActiveSet == username || a.cfg.ActiveSet == "" {
 		if len(a.cfg.CredSets) > 0 {
-			a.cfg.ActiveSet = a.cfg.CredSets[0].Name
+			a.cfg.ActiveSet = a.cfg.CredSets[0].Username
 		} else {
 			a.cfg.ActiveSet = ""
 		}
@@ -296,11 +295,11 @@ func (a *App) DeleteCreds(name string) error {
 }
 
 // SetActiveCred switches the active credential profile.
-func (a *App) SetActiveCred(name string) error {
+func (a *App) SetActiveCred(username string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if err := a.cfg.SetActiveSet(name); err != nil {
+	if err := a.cfg.SetActiveSet(username); err != nil {
 		return err
 	}
 

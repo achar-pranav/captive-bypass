@@ -13,7 +13,7 @@ import (
 	"github.com/achar-pranav/captive-bypass/internal/serve"
 )
 
-func runWatch() {
+func Run() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := macos.Listen(ctx, serve.DefaultSocketPath()); err != nil {

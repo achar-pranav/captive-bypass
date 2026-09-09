@@ -67,23 +67,23 @@ func (c *Config) SetCredSet(fp []byte, name, username, password string) error {
 		Ciphertext: aead.Seal(nil, nonce, []byte(password), nil),
 	}
 	for i := range c.CredSets {
-		if c.CredSets[i].Name == name {
+		if c.CredSets[i].Username == username {
 			c.CredSets[i] = cs
 			return nil
 		}
 	}
 	c.CredSets = append(c.CredSets, cs)
 	if c.ActiveSet == "" {
-		c.ActiveSet = name
+		c.ActiveSet = username
 	}
 	return nil
 }
 
-func (c *Config) DeleteCredSet(name string) error {
+func (c *Config) DeleteCredSet(username string) error {
 	for i := range c.CredSets {
-		if c.CredSets[i].Name == name {
+		if c.CredSets[i].Username == username {
 			c.CredSets = append(c.CredSets[:i], c.CredSets[i+1:]...)
-			if c.ActiveSet == name {
+			if c.ActiveSet == username {
 				c.ActiveSet = ""
 			}
 			return nil
@@ -92,10 +92,10 @@ func (c *Config) DeleteCredSet(name string) error {
 	return ErrUnknownSet
 }
 
-func (c *Config) SetActiveSet(name string) error {
+func (c *Config) SetActiveSet(username string) error {
 	for i := range c.CredSets {
-		if c.CredSets[i].Name == name {
-			c.ActiveSet = name
+		if c.CredSets[i].Username == username {
+			c.ActiveSet = username
 			return nil
 		}
 	}
@@ -110,9 +110,9 @@ func (c *Config) ActiveUser() (string, error) {
 	return cs.Username, nil
 }
 
-func (c *Config) GetCredsByName(fp []byte, name string) (string, string, error) {
+func (c *Config) GetCredsByUsername(fp []byte, username string) (string, string, error) {
 	for i := range c.CredSets {
-		if c.CredSets[i].Name == name {
+		if c.CredSets[i].Username == username {
 			key, err := deriveKey(fp, c.CredSets[i].Salt)
 		if err != nil {
 			return "", "", err
@@ -154,7 +154,7 @@ func (c *Config) GetActiveCreds(fp []byte) (string, string, error) {
 func (c *Config) findActive() *CredSet {
 	if c.ActiveSet != "" {
 		for i := range c.CredSets {
-			if c.CredSets[i].Name == c.ActiveSet {
+			if c.CredSets[i].Username == c.ActiveSet {
 				return &c.CredSets[i]
 			}
 		}

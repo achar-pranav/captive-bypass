@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const DefaultBaseURL = "https://rr.pes.edu:8090/httpclient.html"
+const DefaultBaseURL = "https://rr.pes.edu:8090"
 
 type Client struct {
 	baseURL string
@@ -33,6 +33,8 @@ func New(baseURL string, hc *http.Client) *Client {
 	if baseURL == "" {
 		baseURL = DefaultBaseURL
 	}
+	baseURL = strings.TrimSuffix(baseURL, "/httpclient.html")
+	baseURL = strings.TrimRight(baseURL, "/")
 	if hc == nil {
 		hc = &http.Client{
 			Timeout: 20 * time.Second,
@@ -41,7 +43,7 @@ func New(baseURL string, hc *http.Client) *Client {
 			},
 		}
 	}
-	return &Client{baseURL: strings.TrimRight(baseURL, "/"), client: hc}
+	return &Client{baseURL: baseURL, client: hc}
 }
 
 func (c *Client) Login(ctx context.Context, username, password string) (bool, string, error) {
@@ -52,7 +54,7 @@ func (c *Client) Login(ctx context.Context, username, password string) (bool, st
 	form.Set("a", strconv.FormatInt(time.Now().UnixMilli(), 10))
 	form.Set("producttype", "0")
 
-	respBody, err := c.post(ctx, "/login.xml", form)
+	respBody, err := c.post(ctx, "/httpclient.html", form)
 	if err != nil {
 		return false, "", err
 	}
@@ -74,12 +76,12 @@ func (c *Client) Logout(ctx context.Context, username string) error {
 	form.Set("a", strconv.FormatInt(time.Now().UnixMilli(), 10))
 	form.Set("producttype", "0")
 
-	_, err := c.post(ctx, "/logout.xml", form)
+	_, err := c.post(ctx, "/httpclient.html", form)
 	return err
 }
 
 func (c *Client) Livecheck(ctx context.Context) (bool, error) {
-	respBody, err := c.post(ctx, "/livecheck.xml", url.Values{})
+	respBody, err := c.post(ctx, "/httpclient.html", url.Values{})
 	if err != nil {
 		return false, err
 	}

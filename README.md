@@ -11,7 +11,7 @@ Auto-login for the PESU **Sophos/Cyberoam** captive portal (`rr.pes.edu:8090`), 
 Reverse-engineered from the portal's own `httpclient.js`:
 
 ```
-POST https://rr.pes.edu:8090/login.xml
+POST https://rr.pes.edu:8090/httpclient.html
 Content-Type: application/x-www-form-urlencoded
 
 mode=191&username=<SRN>&password=<PASSWORD>&a=<epoch-ms>&producttype=0

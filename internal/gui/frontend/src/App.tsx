@@ -549,7 +549,7 @@ export default function App() {
                       // Trigger background login check
                       api.manualLogin().then((res) => {
                         if (res) triggerToast(res, 'info');
-                      }).catch(() => {});
+                      }).catch((err) => console.error('Login failed:', err));
                     } catch (err) {
                       console.error('Ready screen enable failed:', err);
                       setStep('main');
@@ -1086,7 +1086,7 @@ export default function App() {
                           onClick={(e) => {
                             e.stopPropagation();
                             handleAntiSpam(async () => {
-                              await api.deleteCreds(cred.name);
+                              await api.deleteCreds(cred.username);
                               const updated = credSets.filter((c) => c.id !== cred.id);
                               setCredSets(updated);
                               if (updated.length === 0) {
@@ -1096,7 +1096,7 @@ export default function App() {
                               } else {
                                 if (isActive) {
                                   setActiveCredSetId(updated[0].id);
-                                  api.setActiveCred(updated[0].name);
+                                  api.setActiveCred(updated[0].username);
                                 }
                                 triggerToast(`Deleted credential set: ${cred.name}`, 'info');
                               }

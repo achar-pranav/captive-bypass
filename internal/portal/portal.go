@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/xml"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,7 +14,7 @@ import (
 	"time"
 )
 
-const DefaultBaseURL = "https://rr.pes.edu:8090"
+const DefaultBaseURL = "https://rr.pes.edu:8090/httpclient.html"
 
 type Client struct {
 	baseURL string
@@ -97,10 +98,15 @@ func (c *Client) post(ctx context.Context, path string, form url.Values) ([]byte
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", "captive-bypass/1.0")
 
+	log.Printf("portal: sending request to %s", c.baseURL+path)
+
+
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
+	log.Printf("portal: received response, status=%d", resp.StatusCode)
+
 	defer resp.Body.Close()
 	return io.ReadAll(resp.Body)
 }

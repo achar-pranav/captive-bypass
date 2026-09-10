@@ -62,7 +62,7 @@ func wantEpochA(t *testing.T, form url.Values) {
 }
 
 func TestLoginLive(t *testing.T) {
-	ts := newTestServer(t, "/httpclient.html", "login_live.xml")
+	ts := newTestServer(t, "/login.xml", "login_live.xml")
 	defer ts.Close()
 	c := New(ts.URL, ts.Client())
 
@@ -87,7 +87,7 @@ func TestLoginLive(t *testing.T) {
 }
 
 func TestLoginFailure(t *testing.T) {
-	ts := newTestServer(t, "/httpclient.html", "login_fail.xml")
+	ts := newTestServer(t, "/login.xml", "login_fail.xml")
 	defer ts.Close()
 	c := New(ts.URL, ts.Client())
 
@@ -104,7 +104,7 @@ func TestLoginFailure(t *testing.T) {
 }
 
 func TestLogout(t *testing.T) {
-	ts := newTestServer(t, "/httpclient.html", "logout.xml")
+	ts := newTestServer(t, "/logout.xml", "logout.xml")
 	defer ts.Close()
 	c := New(ts.URL, ts.Client())
 
@@ -124,7 +124,7 @@ func TestLogout(t *testing.T) {
 }
 
 func TestEnvOverride(t *testing.T) {
-	ts := newTestServer(t, "/httpclient.html", "login_live.xml")
+	ts := newTestServer(t, "/login.xml", "login_live.xml")
 	defer ts.Close()
 	t.Setenv("CAPTIVE_BYPASS_PORTAL", ts.URL)
 

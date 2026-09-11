@@ -20,6 +20,8 @@ type App struct {
 	portal  *portal.Client
 	wifi    backends.Backend
 	mu      sync.Mutex
+	portalStatus string
+	portalSub    string
 }
 
 // CredProfileInfo represents a credential profile summary without exposing secrets.
@@ -60,6 +62,8 @@ func NewApp(cfg *config.Config, cfgPath string, pc *portal.Client, b backends.Ba
 		cfgPath: cfgPath,
 		portal:  pc,
 		wifi:    b,
+		portalStatus: "red",
+		portalSub:    "Starting up...",
 	}
 }
 

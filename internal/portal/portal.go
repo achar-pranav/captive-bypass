@@ -52,6 +52,8 @@ func (c *Client) Login(ctx context.Context, username, password string) (bool, st
 	form.Set("a", strconv.FormatInt(time.Now().UnixMilli(), 10))
 	form.Set("producttype", "0")
 
+	log.Printf("portal: sending Login POST to /login.xml with body: %s", form.Encode())
+
 	respBody, err := c.post(ctx, "/login.xml", form)
 	if err != nil {
 		return false, "", err

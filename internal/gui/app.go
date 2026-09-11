@@ -396,8 +396,14 @@ func (a *App) checkPortalState() {
 	a.portalStatus = "yellow"
 	a.portalSub = fmt.Sprintf("Authenticating with %s", ssid)
 	
-	fp, _ := config.MachineFingerprint()
-	user, pass, _ := a.cfg.GetActiveCreds(fp)
+	fp, err := config.MachineFingerprint()
+	if err != nil {
+		log.Printf("checkPortalState: failed to get fingerprint: %v", err)
+	}
+	user, pass, err := a.cfg.GetActiveCreds(fp)
+	if err != nil {
+		log.Printf("checkPortalState: failed to get active creds: %v", err)
+	}
 	a.mu.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

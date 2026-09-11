@@ -27,7 +27,6 @@ type App struct {
 
 // CredProfileInfo represents a credential profile summary without exposing secrets.
 type CredProfileInfo struct {
-	Name     string `json:"name"`
 	Username string `json:"username"`
 	IsActive bool   `json:"isActive"`
 }
@@ -129,7 +128,6 @@ func (a *App) GetState() AppState {
 	profiles := make([]CredProfileInfo, 0, len(a.cfg.CredSets))
 	for _, cs := range a.cfg.CredSets {
 		profiles = append(profiles, CredProfileInfo{
-			Name:     cs.Name,
 			Username: cs.Username,
 			IsActive: cs.Username == a.cfg.ActiveSet,
 		})
@@ -214,8 +212,8 @@ func (a *App) RemoveSSID(ssid string) error {
 	return config.Save(a.cfgPath, a.cfg)
 }
 
-// SaveCreds encrypts and saves credentials for a named profile.
-func (a *App) SaveCreds(name, username, password string, setActive bool) error {
+// SaveCreds encrypts and saves credentials for a profile.
+func (a *App) SaveCreds(username, password string, setActive bool) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -319,8 +317,13 @@ func (a *App) SetThreshold(threshold int) error {
 }
 
 // ManualLogin triggers an explicit login attempt against the captive portal.
-// ManualLogin triggers an explicit login attempt against the captive portal.
 func (a *App) ManualLogin() (string, error) {
+	a.mu.Lock()
+	if len(a.cfg.CredSets) == 0 || a.cfg.ActiveSet == "" {
+		a.mu.Unlock()
+		return "", errors.New("no credentials configured")
+	}
+	a.mu.Unlock()
 	go a.checkPortalState()
 	return "Login triggered", nil
 }
@@ -389,6 +392,13 @@ func (a *App) checkPortalState() {
 		return
 	}
 
+	if len(a.cfg.CredSets) == 0 || a.cfg.ActiveSet == "" {
+		a.portalStatus = "yellow"
+		a.portalSub = "No credentials configured"
+		a.mu.Unlock()
+		return
+	}
+
 	a.portalStatus = "yellow"
 	a.portalSub = fmt.Sprintf("Authenticating with %s", ssid)
 	
@@ -399,6 +409,10 @@ func (a *App) checkPortalState() {
 	user, pass, err := a.cfg.GetActiveCreds(fp)
 	if err != nil {
 		log.Printf("checkPortalState: failed to get active creds: %v", err)
+		a.portalStatus = "yellow"
+		a.portalSub = "No credentials configured"
+		a.mu.Unlock()
+		return
 	}
 	a.mu.Unlock()
 

@@ -13,7 +13,6 @@ export interface BackendState {
   credsCount: number;
   recognizedNetworks: string[];
   credProfiles: Array<{
-    name: string;
     username: string;
     isActive: boolean;
   }>;
@@ -36,10 +35,10 @@ declare global {
           ScanNetworks: () => Promise<ScannedNetwork[]>;
           AddSSID: (ssid: string) => Promise<void>;
           RemoveSSID: (ssid: string) => Promise<void>;
-          SaveCreds: (name: string, username: string, password: string, setActive: boolean) => Promise<void>;
-          GetCreds: (name: string) => Promise<{ name: string; username: string; password?: string }>;
-          DeleteCreds: (name: string) => Promise<void>;
-          SetActiveCred: (name: string) => Promise<void>;
+          SaveCreds: (username: string, password: string, setActive: boolean) => Promise<void>;
+          GetCreds: (username: string) => Promise<{ username: string; password?: string }>;
+          DeleteCreds: (username: string) => Promise<void>;
+          SetActiveCred: (username: string) => Promise<void>;
           ToggleAutoLogin: (enabled: boolean) => Promise<void>;
           ToggleVanguard: (enabled: boolean) => Promise<void>;
           SetThreshold: (threshold: number) => Promise<void>;
@@ -96,28 +95,28 @@ export const api = {
     }
   },
 
-  async saveCreds(name: string, username: string, password: string, setActive: boolean = false): Promise<void> {
+  async saveCreds(username: string, password: string, setActive: boolean = false): Promise<void> {
     if (isWails()) {
-      await window.go!.gui!.App!.SaveCreds(name, username, password, setActive);
+      await window.go!.gui!.App!.SaveCreds(username, password, setActive);
     }
   },
 
-  async getCreds(name: string): Promise<{ name: string; username: string; password?: string } | null> {
+  async getCreds(username: string): Promise<{ username: string; password?: string } | null> {
     if (isWails()) {
-      return await window.go!.gui!.App!.GetCreds(name);
+      return await window.go!.gui!.App!.GetCreds(username);
     }
     return null;
   },
 
-  async deleteCreds(name: string): Promise<void> {
+  async deleteCreds(username: string): Promise<void> {
     if (isWails()) {
-      await window.go!.gui!.App!.DeleteCreds(name);
+      await window.go!.gui!.App!.DeleteCreds(username);
     }
   },
 
-  async setActiveCred(name: string): Promise<void> {
+  async setActiveCred(username: string): Promise<void> {
     if (isWails()) {
-      await window.go!.gui!.App!.SetActiveCred(name);
+      await window.go!.gui!.App!.SetActiveCred(username);
     }
   },
 

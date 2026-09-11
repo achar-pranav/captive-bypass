@@ -7,14 +7,6 @@ import (
 	"github.com/achar-pranav/captive-bypass/backends"
 )
 
-func (b *Backend) Scan() ([]backends.AP, error) {
-	out, err := run("nmcli", "-t", "-f", "ssid,bssid,signal,security", "device", "wifi", "list")
-	if err != nil {
-		return nil, err
-	}
-	return parseScan(out), nil
-}
-
 func parseScan(out string) []backends.AP {
 	var aps []backends.AP
 	for _, line := range splitLines(out) {

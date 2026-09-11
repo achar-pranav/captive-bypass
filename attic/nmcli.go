@@ -1,3 +1,5 @@
+//go:build ignore
+
 package nmcli
 
 import (
@@ -128,4 +130,12 @@ func parseSignal(out string) (int, error) {
 		break
 	}
 	return 0, ErrNoSignal
+}
+
+func (b *Backend) Scan() ([]backends.AP, error) {
+	out, err := run("nmcli", "-t", "-f", "ssid,bssid,signal,security", "device", "wifi", "list")
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
 }

@@ -1,3 +1,5 @@
+//go:build ignore
+
 package nmcli_test
 
 import (

@@ -70,6 +70,7 @@ func NewApp(cfg *config.Config, cfgPath string, pc *portal.Client, b backends.Ba
 // Startup is called when the Wails application starts up.
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+	go a.checkPortalState()
 }
 
 // GetState returns the current application, network, and profile state.
@@ -112,34 +113,15 @@ func (a *App) GetState() AppState {
 		statusTitle = "Network edge"
 		statusSub = "You're at the edge"
 	} else {
-		// Check if active SSID is registered
-		isRegistered := false
-		for _, reg := range a.cfg.SSIDs {
-			if reg == ssid {
-				isRegistered = true
-				break
-			}
-		}
-
-		if isRegistered {
-			// Check live portal status
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			online, _ := a.portal.Livecheck(ctx)
-			cancel()
-
-			if online {
-				status = "green"
-				statusTitle = "<Connected>"
-				statusSub = fmt.Sprintf("Connected to %s", ssid)
-			} else {
-				status = "yellow"
-				statusTitle = "<In Progress>"
-				statusSub = fmt.Sprintf("Authenticating with %s", ssid)
-			}
-		} else {
-			status = "red"
+		status = a.portalStatus
+		statusSub = a.portalSub
+		switch status {
+		case "green":
+			statusTitle = "<Connected>"
+		case "yellow":
+			statusTitle = "<In Progress>"
+		default:
 			statusTitle = "<Disconnected>"
-			statusSub = fmt.Sprintf("Connected to %s (not registered)", ssid)
 		}
 	}
 
@@ -340,32 +322,10 @@ func (a *App) SetThreshold(threshold int) error {
 }
 
 // ManualLogin triggers an explicit login attempt against the captive portal.
+// ManualLogin triggers an explicit login attempt against the captive portal.
 func (a *App) ManualLogin() (string, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	fp, err := config.MachineFingerprint()
-	if err != nil {
-		return "", fmt.Errorf("hardware fingerprint: %w", err)
-	}
-
-	user, pass, err := a.cfg.GetActiveCreds(fp)
-	if err != nil {
-		return "", fmt.Errorf("reading active credentials: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	ok, msg, err := a.portal.Login(ctx, user, pass)
-	if err != nil {
-		return "", err
-	}
-	if !ok {
-		return fmt.Sprintf("Portal login failed: %s", msg), nil
-	}
-
-	return "Logged in successfully", nil
+	go a.checkPortalState()
+	return "Login triggered", nil
 }
 
 // ManualLogout triggers an explicit logout attempt against the captive portal.
@@ -391,6 +351,7 @@ func (a *App) FinishWizard(ssids []string) error {
 
 	a.cfg.SSIDs = ssids
 	a.cfg.WizardDone = true
+	go a.checkPortalState()
 	return config.Save(a.cfgPath, a.cfg)
 }
 
@@ -402,4 +363,53 @@ func dbmToPercent(dbm int) int {
 		return 0
 	}
 	return 2 * (dbm + 100)
+}
+
+func (a *App) checkPortalState() {
+	a.mu.Lock()
+	ssid := ""
+	if a.wifi != nil {
+		ssid, _ = a.wifi.ActiveSSID()
+	}
+	if ssid == "" {
+		a.portalStatus = "red"
+		a.portalSub = "Wi-Fi is offline"
+		a.mu.Unlock()
+		return
+	}
+
+	isRegistered := false
+	for _, reg := range a.cfg.SSIDs {
+		if reg == ssid {
+			isRegistered = true
+			break
+		}
+	}
+	if !isRegistered {
+		a.portalStatus = "red"
+		a.portalSub = fmt.Sprintf("Connected to %s (not registered)", ssid)
+		a.mu.Unlock()
+		return
+	}
+
+	a.portalStatus = "yellow"
+	a.portalSub = fmt.Sprintf("Authenticating with %s", ssid)
+	
+	fp, _ := config.MachineFingerprint()
+	user, pass, _ := a.cfg.GetActiveCreds(fp)
+	a.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	ok, _, err := a.portal.Login(ctx, user, pass)
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if err != nil || !ok {
+		a.portalStatus = "red"
+		a.portalSub = fmt.Sprintf("Authentication failed on %s", ssid)
+	} else {
+		a.portalStatus = "green"
+		a.portalSub = fmt.Sprintf("Connected to %s", ssid)
+	}
 }

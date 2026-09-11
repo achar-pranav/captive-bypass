@@ -85,7 +85,6 @@ func (c *Config) migrateLegacyCreds() {
 		return
 	}
 	c.CredSets = append(c.CredSets, CredSet{
-		Name:       "default",
 		Username:   c.Creds.Username,
 		Salt:       c.Creds.Salt,
 		Nonce:      c.Creds.Nonce,

@@ -219,16 +219,12 @@ func (a *App) SaveCreds(name, username, password string, setActive bool) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if name == "" {
-		name = "default"
-	}
-
 	fp, err := config.MachineFingerprint()
 	if err != nil {
 		return fmt.Errorf("deriving hardware fingerprint: %w", err)
 	}
 
-	if err := a.cfg.SetCredSet(fp, name, username, password); err != nil {
+	if err := a.cfg.SetCredSet(fp, username, password); err != nil {
 		return fmt.Errorf("encrypting credentials: %w", err)
 	}
 

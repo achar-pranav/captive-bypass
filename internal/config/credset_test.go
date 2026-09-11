@@ -13,16 +13,18 @@ func testFP(t *testing.T) []byte {
 
 func TestCredSetRoundtrip(t *testing.T) {
 	c := Default()
-	if err := c.SetCredSet(testFP(t), "work", "PES123", "secret"); err != nil {
+	if err := c.SetCredSet(testFP(t), "PES123", "secret"); err != nil {
 		t.Fatal(err)
 	}
-	if c.ActiveSet != "work" {
-		t.Fatalf("active = %q, want work", c.ActiveSet)
+	if c.ActiveSet != "PES123" {
+		t.Fatalf("active = %q, want PES123", c.ActiveSet)
 	}
+
 	user, pass, err := c.GetActiveCreds(testFP(t))
 	if err != nil || user != "PES123" || pass != "secret" {
 		t.Fatalf("got %q/%q, %v", user, pass, err)
 	}
+
 	if _, _, err := c.GetActiveCreds([]byte("wrong-fp")); err == nil {
 		t.Fatal("expected decrypt failure with wrong fingerprint")
 	}
@@ -31,30 +33,33 @@ func TestCredSetRoundtrip(t *testing.T) {
 func TestCredSetUpsertAndSwitch(t *testing.T) {
 	c := Default()
 	fp := testFP(t)
-	if err := c.SetCredSet(fp, "a", "u1", "p1"); err != nil {
+
+	if err := c.SetCredSet(fp, "u1", "p1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.SetCredSet(fp, "b", "u2", "p2"); err != nil {
+	if err := c.SetCredSet(fp, "u2", "p2"); err != nil {
 		t.Fatal(err)
 	}
 	if len(c.CredSets) != 2 {
 		t.Fatalf("sets = %d, want 2", len(c.CredSets))
 	}
-	if err := c.SetActiveSet("b"); err != nil {
+
+	if err := c.SetActiveSet("u2"); err != nil {
 		t.Fatal(err)
 	}
 	user, pass, _ := c.GetActiveCreds(fp)
 	if user != "u2" || pass != "p2" {
 		t.Fatalf("active resolved to %q/%q", user, pass)
 	}
-	if err := c.SetCredSet(fp, "b", "u3", "p3"); err != nil {
+
+	if err := c.SetCredSet(fp, "u2", "p3"); err != nil {
 		t.Fatal(err)
 	}
 	if got := len(c.CredSets); got != 2 {
 		t.Fatalf("upsert created set #%d", got)
 	}
 	user, pass, _ = c.GetActiveCreds(fp)
-	if user != "u3" || pass != "p3" {
+	if user != "u2" || pass != "p3" {
 		t.Fatalf("upsert not applied: %q/%q", user, pass)
 	}
 }
@@ -62,8 +67,9 @@ func TestCredSetUpsertAndSwitch(t *testing.T) {
 func TestDeleteCredSetClearsActive(t *testing.T) {
 	c := Default()
 	fp := testFP(t)
-	c.SetCredSet(fp, "only", "u", "p")
-	if err := c.DeleteCredSet("only"); err != nil {
+	c.SetCredSet(fp, "u", "p")
+
+	if err := c.DeleteCredSet("u"); err != nil {
 		t.Fatal(err)
 	}
 	if c.ActiveSet != "" || len(c.CredSets) != 0 {
@@ -84,6 +90,7 @@ func TestLegacyMigration(t *testing.T) {
 	if err := writeFile(p, old); err != nil {
 		t.Fatal(err)
 	}
+
 	c, err := Load(p)
 	if err != nil && err != ErrNoConfig {
 		t.Fatal(err)

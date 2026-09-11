@@ -25,7 +25,6 @@ var (
 )
 
 type CredSet struct {
-	Name       string `json:"name"`
 	Username   string `json:"username"`
 	Salt       []byte `json:"salt"`
 	Nonce      []byte `json:"nonce"`
@@ -39,10 +38,7 @@ type credsBlob struct {
 	Ciphertext []byte `json:"ciphertext"`
 }
 
-func (c *Config) SetCredSet(fp []byte, name, username, password string) error {
-	if name == "" {
-		name = "default"
-	}
+func (c *Config) SetCredSet(fp []byte, username, password string) error {
 	salt := make([]byte, saltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return err
@@ -60,7 +56,6 @@ func (c *Config) SetCredSet(fp []byte, name, username, password string) error {
 		return err
 	}
 	cs := CredSet{
-		Name:       name,
 		Username:   username,
 		Salt:       salt,
 		Nonce:      nonce,

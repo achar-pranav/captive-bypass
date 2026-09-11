@@ -169,7 +169,7 @@ func runToggle(disable bool) {
 }
 
 func runUpdateCreds(args []string) {
-	var user, pass, name string
+	var user, pass string
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--user":
@@ -182,21 +182,16 @@ func runUpdateCreds(args []string) {
 			if i < len(args) {
 				pass = args[i]
 			}
-		case "--name":
-			i++
-			if i < len(args) {
-				name = args[i]
-			}
 		}
 	}
 	if user == "" || pass == "" {
-		fmt.Fprintln(os.Stderr, "usage: captive-bypass update-creds --user SRN --pass PASSWORD [--name NAME]")
+		fmt.Fprintln(os.Stderr, "usage: captive-bypass update-creds --user SRN --pass PASSWORD")
 		os.Exit(2)
 	}
 	cfg := loadConfigOrDie()
-	must(cfg.SetCredSet(fingerprint(), name, user, pass), "store credentials")
+	must(cfg.SetCredSet(fingerprint(), user, pass), "store credentials")
 	saveConfig(cfg)
-	fmt.Printf("Credential set %q stored.\n", name)
+	fmt.Printf("Credentials for %q stored.\n", user)
 }
 
 func runSetNetwork(args []string) {

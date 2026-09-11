@@ -233,7 +233,7 @@ func (a *App) SaveCreds(name, username, password string, setActive bool) error {
 	}
 
 	if setActive || a.cfg.ActiveSet == "" {
-		a.cfg.ActiveSet = name
+		a.cfg.ActiveSet = username
 	}
 
 	return config.Save(a.cfgPath, a.cfg)

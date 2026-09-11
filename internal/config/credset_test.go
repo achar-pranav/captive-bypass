@@ -88,7 +88,7 @@ func TestLegacyMigration(t *testing.T) {
 	if err != nil && err != ErrNoConfig {
 		t.Fatal(err)
 	}
-	if c.ActiveSet != "default" || len(c.CredSets) != 1 || c.CredSets[0].Username != "OLD" {
+	if c.ActiveSet != "OLD" || len(c.CredSets) != 1 || c.CredSets[0].Username != "OLD" {
 		t.Fatalf("migration produced %+v active=%q", c.CredSets, c.ActiveSet)
 	}
 }

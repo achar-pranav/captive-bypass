@@ -91,7 +91,7 @@ func (c *Config) migrateLegacyCreds() {
 		Nonce:      c.Creds.Nonce,
 		Ciphertext: c.Creds.Ciphertext,
 	})
-	c.ActiveSet = "default"
+	c.ActiveSet = c.Creds.Username
 }
 
 func Save(path string, c *Config) error {

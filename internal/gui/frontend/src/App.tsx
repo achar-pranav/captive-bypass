@@ -359,7 +359,7 @@ export default function App() {
                     }
                     const profileName = formCredName.trim() || 'default';
                     try {
-                      await api.saveCreds(profileName, formUsername.trim(), formPassword, true);
+                      await api.saveCreds(updatedUsername, formPassword, true);
                       const newSet: CredSet = {
                         id: profileName,
                         name: profileName,
@@ -979,7 +979,7 @@ export default function App() {
                     }
                     const profileName = formCredName.trim() || `profile-${credSets.length + 1}`;
                     try {
-                      await api.saveCreds(profileName, formUsername.trim(), formPassword, true);
+                      await api.saveCreds(updatedUsername, formPassword, true);
                       const newSet: CredSet = {
                         id: profileName,
                         name: profileName,

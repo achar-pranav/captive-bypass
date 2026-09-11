@@ -36,7 +36,7 @@ declare global {
           ScanNetworks: () => Promise<ScannedNetwork[]>;
           AddSSID: (ssid: string) => Promise<void>;
           RemoveSSID: (ssid: string) => Promise<void>;
-          SaveCreds: (name: string, username: string, password: string, setActive: boolean) => Promise<void>;
+          SaveCreds: (username: string, password: string, setActive: boolean) => Promise<void>;
           GetCreds: (name: string) => Promise<{ name: string; username: string; password?: string }>;
           DeleteCreds: (name: string) => Promise<void>;
           SetActiveCred: (name: string) => Promise<void>;
@@ -96,9 +96,9 @@ export const api = {
     }
   },
 
-  async saveCreds(name: string, username: string, password: string, setActive: boolean = false): Promise<void> {
+  async saveCreds(username: string, password: string, setActive: boolean = false): Promise<void> {
     if (isWails()) {
-      await window.go!.gui!.App!.SaveCreds(name, username, password, setActive);
+      await window.go!.gui!.App!.SaveCreds(username, password, setActive);
     }
   },
 

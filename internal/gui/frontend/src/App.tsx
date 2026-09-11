@@ -713,14 +713,19 @@ export default function App() {
                     type="checkbox"
                     className="peer sr-only"
                     checked={captiveBypassEnabled}
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const checked = e.target.checked;
                       setCaptiveBypassEnabled(checked);
-                      api.toggleAutoLogin(checked);
-                      if (!checked) {
-                        triggerToast('captive-bypass disabled', 'warn');
-                      } else {
-                        triggerToast('captive-bypass enabled', 'success');
+                      try {
+                        await api.toggleAutoLogin(checked);
+                        await syncState();
+                        if (!checked) {
+                          triggerToast('captive-bypass disabled', 'warn');
+                        } else {
+                          triggerToast('captive-bypass enabled', 'success');
+                        }
+                      } catch (err) {
+                        triggerToast('Failed to toggle auto-login', 'error');
                       }
                     }}
                   />

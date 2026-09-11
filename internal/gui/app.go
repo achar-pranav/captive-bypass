@@ -11,6 +11,7 @@ import (
 
 	"github.com/achar-pranav/captive-bypass/backends"
 	"github.com/achar-pranav/captive-bypass/internal/config"
+	"github.com/achar-pranav/captive-bypass/internal/install"
 	"github.com/achar-pranav/captive-bypass/internal/portal"
 )
 
@@ -290,10 +291,20 @@ func (a *App) SetActiveCred(username string) error {
 // ToggleAutoLogin toggles the master auto-login switch.
 func (a *App) ToggleAutoLogin(enabled bool) error {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	a.cfg.Paused = !enabled
-	return config.Save(a.cfgPath, a.cfg)
+	if err := config.Save(a.cfgPath, a.cfg); err != nil {
+		a.mu.Unlock()
+		return err
+	}
+	a.mu.Unlock()
+
+	if enabled {
+		if err := install.Enable(); err != nil {
+			log.Printf("ToggleAutoLogin: install.Enable warning: %v", err)
+		}
+		go a.checkPortalState()
+	}
+	return nil
 }
 
 // ToggleVanguard toggles the Vanguard edge-of-network telemetry mode.
@@ -348,12 +359,21 @@ func (a *App) ManualLogout() error {
 // FinishWizard completes the setup wizard by committing initial SSIDs.
 func (a *App) FinishWizard(ssids []string) error {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	a.cfg.SSIDs = ssids
 	a.cfg.WizardDone = true
+	if err := config.Save(a.cfgPath, a.cfg); err != nil {
+		a.mu.Unlock()
+		return err
+	}
+	a.mu.Unlock()
+
+	// Register and start background service so captive-bypass runs on boot/wake without needing the GUI.
+	if err := install.Enable(); err != nil {
+		log.Printf("FinishWizard: background service enable note: %v", err)
+	}
+
 	go a.checkPortalState()
-	return config.Save(a.cfgPath, a.cfg)
+	return nil
 }
 
 func dbmToPercent(dbm int) int {
@@ -368,6 +388,12 @@ func dbmToPercent(dbm int) int {
 
 func (a *App) checkPortalState() {
 	a.mu.Lock()
+	if a.cfg.Paused {
+		a.portalStatus = "red"
+		a.portalSub = "captive-bypass paused"
+		a.mu.Unlock()
+		return
+	}
 	ssid := ""
 	if a.wifi != nil {
 		ssid, _ = a.wifi.ActiveSSID()

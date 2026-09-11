@@ -79,7 +79,7 @@ func (c *Client) Logout(ctx context.Context, username string) error {
 }
 
 func (c *Client) Livecheck(ctx context.Context) (bool, error) {
-	respBody, err := c.post(ctx, "/livecheck.xml", url.Values{})
+	respBody, err := c.post(ctx, "/login.xml", url.Values{})
 	if err != nil {
 		return false, err
 	}

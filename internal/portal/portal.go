@@ -59,8 +59,10 @@ func (c *Client) Login(ctx context.Context, username, password string) (bool, st
 
 	var pr portalResponse
 	if err := xml.Unmarshal(respBody, &pr); err != nil {
+		log.Printf("portal: failed to unmarshal response: %v. Raw body: %s", err, string(respBody))
 		return false, "", err
 	}
+	log.Printf("portal: parsed response status: %q, message: %q", pr.Status, pr.Message)
 	if pr.Status == "LIVE" {
 		return true, "authenticated", nil
 	}

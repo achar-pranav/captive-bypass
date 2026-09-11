@@ -3,6 +3,7 @@ package gui
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"sync"
 	"time"
@@ -401,11 +402,12 @@ func (a *App) checkPortalState() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	ok, _, err := a.portal.Login(ctx, user, pass)
+	ok, msg, err := a.portal.Login(ctx, user, pass)
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if err != nil || !ok {
+		log.Printf("checkPortalState: login failed. ok=%v, err=%v, msg=%q", ok, err, msg)
 		a.portalStatus = "red"
 		a.portalSub = fmt.Sprintf("Authentication failed on %s", ssid)
 	} else {

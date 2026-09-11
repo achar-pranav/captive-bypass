@@ -93,7 +93,7 @@ export default function App() {
         }));
         setCredSets(sets);
         const active = state.credProfiles.find((p) => p.isActive) || state.credProfiles[0];
-        setActiveCredSetId(active.username);
+        setActiveCredSetId(active.name);
       } else {
         setCredSets([]);
         setActiveCredSetId('');
@@ -359,7 +359,7 @@ export default function App() {
                     }
                     const profileName = formCredName.trim() || 'default';
                     try {
-                      await api.saveCreds(updatedUsername, formPassword, true);
+                      await api.saveCreds(profileName, formUsername.trim(), formPassword, true);
                       const newSet: CredSet = {
                         id: profileName,
                         name: profileName,
@@ -367,7 +367,7 @@ export default function App() {
                         password: formPassword,
                       };
                       setCredSets([newSet]);
-                      setActiveCredSetId(updatedUsername);
+                      setActiveCredSetId(profileName);
                       setStep('ssids');
                       triggerToast('Credentials encrypted & saved', 'success');
                     } catch (err) {
@@ -673,7 +673,7 @@ export default function App() {
                     <p className="text-[11px] text-[#7A828A]">
                       Active:{' '}
                       <span className="text-[#00A8FF] font-mono">
-                        {credSets.find((c) => c.id === activeCredSetId)?.username || 'None'}
+                        {credSets.find((c) => c.id === activeCredSetId)?.name || 'None'}
                       </span>
                     </p>
                   </div>
@@ -681,7 +681,8 @@ export default function App() {
                     <button
                       onClick={() =>
                         handleAntiSpam(() => {
-                                                    setFormUsername('');
+                          setFormCredName('');
+                          setFormUsername('');
                           setFormPassword('');
                           setActiveModal('add_cred');
                         })
@@ -929,10 +930,18 @@ export default function App() {
 
               <div className="space-y-2.5 pt-1">
                 <div>
-                  
+                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">1. Credentials Name</label>
+                  <input
+                    type="text"
+                    value={formCredName}
+                    onChange={(e) => setFormCredName(e.target.value)}
+                    placeholder="e.g. personal, campus, lab"
+                    className="w-full bg-[#0E1012] border border-[#2B2D31] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#00A8FF]"
+                  />
+                </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">1. Username (SRN)</label>
+                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">2. Username (SRN)</label>
                   <input
                     type="text"
                     value={formUsername}
@@ -943,7 +952,7 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">2. Password</label>
+                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">3. Password</label>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
@@ -979,7 +988,7 @@ export default function App() {
                     }
                     const profileName = formCredName.trim() || `profile-${credSets.length + 1}`;
                     try {
-                      await api.saveCreds(updatedUsername, formPassword, true);
+                      await api.saveCreds(profileName, formUsername.trim(), formPassword, true);
                       const newSet: CredSet = {
                         id: profileName,
                         name: profileName,
@@ -987,7 +996,7 @@ export default function App() {
                         password: formPassword,
                       };
                       setCredSets([...credSets, newSet]);
-                      setActiveCredSetId(updatedUsername);
+                      setActiveCredSetId(profileName);
                       setActiveModal('none');
                       triggerToast(`Added & activated: ${profileName}`, 'success');
                     } catch (err) {
@@ -1130,15 +1139,23 @@ export default function App() {
             <div className="space-y-3">
               <div>
                 <h3 className="text-sm font-bold text-white">Edit Credentials</h3>
-                <p className="text-[11px] text-[#7A828A]">Update username or password</p>
+                <p className="text-[11px] text-[#7A828A]">Update username, password, or profile name</p>
               </div>
 
               <div className="space-y-2.5 pt-1">
                 <div>
-                  
+                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">1. Credentials Name</label>
+                  <input
+                    type="text"
+                    value={formCredName}
+                    onChange={(e) => setFormCredName(e.target.value)}
+                    placeholder="Profile name"
+                    className="w-full bg-[#0E1012] border border-[#2B2D31] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#00A8FF]"
+                  />
+                </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">1. Username (SRN)</label>
+                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">2. Username (SRN)</label>
                   <input
                     type="text"
                     value={formUsername}
@@ -1149,7 +1166,7 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">2. Password</label>
+                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">3. Password</label>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}

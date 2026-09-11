@@ -27,6 +27,7 @@ type App struct {
 
 // CredProfileInfo represents a credential profile summary without exposing secrets.
 type CredProfileInfo struct {
+	Name     string `json:"name"`
 	Username string `json:"username"`
 	IsActive bool   `json:"isActive"`
 }
@@ -128,6 +129,7 @@ func (a *App) GetState() AppState {
 	profiles := make([]CredProfileInfo, 0, len(a.cfg.CredSets))
 	for _, cs := range a.cfg.CredSets {
 		profiles = append(profiles, CredProfileInfo{
+			Name:     cs.Name,
 			Username: cs.Username,
 			IsActive: cs.Username == a.cfg.ActiveSet,
 		})
@@ -213,16 +215,20 @@ func (a *App) RemoveSSID(ssid string) error {
 }
 
 // SaveCreds encrypts and saves credentials for a named profile.
-func (a *App) SaveCreds(username, password string, setActive bool) error {
+func (a *App) SaveCreds(name, username, password string, setActive bool) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
+	if name == "" {
+		name = "default"
+	}
 
 	fp, err := config.MachineFingerprint()
 	if err != nil {
 		return fmt.Errorf("deriving hardware fingerprint: %w", err)
 	}
 
-	if err := a.cfg.SetCredSet(fp, username, password); err != nil {
+	if err := a.cfg.SetCredSet(fp, name, username, password); err != nil {
 		return fmt.Errorf("encrypting credentials: %w", err)
 	}
 

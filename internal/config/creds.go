@@ -68,9 +68,7 @@ func (c *Config) SetCredSet(fp []byte, username, password string) error {
 		}
 	}
 	c.CredSets = append(c.CredSets, cs)
-	if c.ActiveSet == "" {
-		c.ActiveSet = username
-	}
+	// We no longer auto-set ActiveSet here. We wait for explicit selection.
 	return nil
 }
 

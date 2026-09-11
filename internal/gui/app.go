@@ -226,7 +226,7 @@ func (a *App) SaveCreds(username, password string, setActive bool) error {
 		return fmt.Errorf("encrypting credentials: %w", err)
 	}
 
-	if setActive {
+	if setActive || a.cfg.ActiveSet == "" {
 		a.cfg.ActiveSet = username
 	}
 

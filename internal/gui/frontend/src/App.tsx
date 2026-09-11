@@ -32,7 +32,6 @@ export default function App() {
   const [editingCredId, setEditingCredId] = useState<string | null>(null);
 
   // Form states for Wizard & Add/Edit dialogs
-  const [formCredName, setFormCredName] = useState<string>('default');
   const [formUsername, setFormUsername] = useState<string>('');
   const [formPassword, setFormPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -87,13 +86,12 @@ export default function App() {
 
       if (state.credProfiles && state.credProfiles.length > 0) {
         const sets: CredSet[] = state.credProfiles.map((p) => ({
-          id: p.name,
-          name: p.name,
+          id: p.username,
           username: p.username,
         }));
         setCredSets(sets);
         const active = state.credProfiles.find((p) => p.isActive) || state.credProfiles[0];
-        setActiveCredSetId(active.name);
+        setActiveCredSetId(active ? active.username : "");
       } else {
         setCredSets([]);
         setActiveCredSetId('');
@@ -353,21 +351,20 @@ export default function App() {
               <button
                 onClick={() =>
                   handleAntiSpam(async () => {
-                    if (!formUsername.trim()) {
+                    const trimmedUser = formUsername.trim();
+                    if (!trimmedUser) {
                       triggerToast('Please enter your SRN username', 'error');
                       return;
                     }
-                    const profileName = formCredName.trim() || 'default';
                     try {
-                      await api.saveCreds(profileName, formUsername.trim(), formPassword, true);
+                      await api.saveCreds(trimmedUser, formPassword, true);
                       const newSet: CredSet = {
-                        id: profileName,
-                        name: profileName,
-                        username: formUsername.trim(),
+                        id: trimmedUser,
+                        username: trimmedUser,
                         password: formPassword,
                       };
                       setCredSets([newSet]);
-                      setActiveCredSetId(profileName);
+                      setActiveCredSetId(trimmedUser);
                       setStep('ssids');
                       triggerToast('Credentials encrypted & saved', 'success');
                     } catch (err) {
@@ -506,13 +503,8 @@ export default function App() {
               {/* Ready Summary Card */}
               <div className="border border-[#1E1F22] bg-[#0A0B0D] rounded-lg p-4 space-y-3 text-xs">
                 <div className="flex items-center justify-between border-b border-[#1E1F22] pb-2">
-                  <span className="text-[#7A828A]">Active Profile:</span>
-                  <span className="text-white font-mono font-semibold">{activeCred?.name || 'default'}</span>
-                </div>
-
-                <div className="flex items-center justify-between border-b border-[#1E1F22] pb-2">
-                  <span className="text-[#7A828A]">SRN Username:</span>
-                  <span className="text-[#00A8FF] font-mono">{activeCred?.username || formUsername || 'Configured'}</span>
+                  <span className="text-[#7A828A]">Active SRN:</span>
+                  <span className="text-[#00A8FF] font-mono font-semibold">{activeCred?.username || formUsername || 'Configured'}</span>
                 </div>
 
                 <div>
@@ -545,11 +537,14 @@ export default function App() {
                       await api.finishWizard(selectedSSIDsStaging);
                       setCaptiveBypassEnabled(true);
                       setStep('main');
-                      triggerToast(`Auto-login enabled with profile '${activeCred?.name || 'default'}'.`, 'success');
-                      // Trigger background login check
-                      api.manualLogin().then((res) => {
-                        if (res) triggerToast(res, 'info');
-                      }).catch((err) => console.error('Login failed:', err));
+                      triggerToast(`Auto-login enabled for '${activeCred?.username || formUsername.trim()}'.`, 'success');
+                      if (credSets.length > 0 || formUsername.trim()) {
+                        api.manualLogin().then((res) => {
+                          if (res) triggerToast(res, 'info');
+                        }).catch((err) => console.error('Login failed:', err));
+                      } else {
+                        triggerToast('No credentials configured — please add a profile.', 'warn');
+                      }
                     } catch (err) {
                       console.error('Ready screen enable failed:', err);
                       setStep('main');
@@ -673,7 +668,7 @@ export default function App() {
                     <p className="text-[11px] text-[#7A828A]">
                       Active:{' '}
                       <span className="text-[#00A8FF] font-mono">
-                        {credSets.find((c) => c.id === activeCredSetId)?.name || 'None'}
+                        {credSets.find((c) => c.id === activeCredSetId)?.username || 'None'}
                       </span>
                     </p>
                   </div>
@@ -681,7 +676,6 @@ export default function App() {
                     <button
                       onClick={() =>
                         handleAntiSpam(() => {
-                          setFormCredName('');
                           setFormUsername('');
                           setFormPassword('');
                           setActiveModal('add_cred');
@@ -930,18 +924,7 @@ export default function App() {
 
               <div className="space-y-2.5 pt-1">
                 <div>
-                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">1. Credentials Name</label>
-                  <input
-                    type="text"
-                    value={formCredName}
-                    onChange={(e) => setFormCredName(e.target.value)}
-                    placeholder="e.g. personal, campus, lab"
-                    className="w-full bg-[#0E1012] border border-[#2B2D31] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#00A8FF]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">2. Username (SRN)</label>
+                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">1. Username (SRN)</label>
                   <input
                     type="text"
                     value={formUsername}
@@ -952,7 +935,7 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">3. Password</label>
+                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">2. Password</label>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
@@ -982,23 +965,32 @@ export default function App() {
               <button
                 onClick={() =>
                   handleAntiSpam(async () => {
-                    if (!formUsername.trim()) {
+                    const trimmedUser = formUsername.trim();
+                    if (!trimmedUser) {
                       triggerToast('Username (SRN) required', 'error');
                       return;
                     }
-                    const profileName = formCredName.trim() || `profile-${credSets.length + 1}`;
                     try {
-                      await api.saveCreds(profileName, formUsername.trim(), formPassword, true);
+                      const isFirst = credSets.length === 0;
+                      await api.saveCreds(trimmedUser, formPassword, isFirst);
                       const newSet: CredSet = {
-                        id: profileName,
-                        name: profileName,
-                        username: formUsername.trim(),
+                        id: trimmedUser,
+                        username: trimmedUser,
                         password: formPassword,
                       };
-                      setCredSets([...credSets, newSet]);
-                      setActiveCredSetId(profileName);
+                      const existingIndex = credSets.findIndex((c) => c.id === trimmedUser);
+                      if (existingIndex >= 0) {
+                        const updated = [...credSets];
+                        updated[existingIndex] = newSet;
+                        setCredSets(updated);
+                      } else {
+                        setCredSets([...credSets, newSet]);
+                      }
+                      if (isFirst || !activeCredSetId) {
+                        setActiveCredSetId(trimmedUser);
+                      }
                       setActiveModal('none');
-                      triggerToast(`Added & activated: ${profileName}`, 'success');
+                      triggerToast(`Saved profile: ${trimmedUser}`, 'success');
                     } catch (err) {
                       triggerToast('Failed to save credentials', 'error');
                     }
@@ -1039,9 +1031,9 @@ export default function App() {
                     <div
                       key={cred.id}
                       onClick={() => {
-                        setActiveCredSetId(cred.id);
-                        api.setActiveCred(cred.name);
-                        triggerToast(`Switched active profile to ${cred.name}`, 'info');
+                        setActiveCredSetId(cred.username);
+                        api.setActiveCred(cred.username);
+                        triggerToast(`Active profile: ${cred.username}`, 'info');
                       }}
                       className={`flex items-center justify-between p-2.5 rounded-lg border cursor-pointer transition-colors ${
                         isActive
@@ -1058,8 +1050,7 @@ export default function App() {
                           className="w-4 h-4 accent-[#00A8FF] cursor-pointer"
                         />
                         <div>
-                          <div className="text-xs font-semibold text-white">{cred.name}</div>
-                          <div className="text-[10px] font-mono text-[#7A828A]">{cred.username}</div>
+                          <div className="text-xs font-semibold font-mono text-white">{cred.username}</div>
                         </div>
                       </div>
 
@@ -1070,7 +1061,6 @@ export default function App() {
                             e.stopPropagation();
                             handleAntiSpam(() => {
                               setEditingCredId(cred.id);
-                              setFormCredName(cred.name);
                               setFormUsername(cred.username);
                               setFormPassword(cred.password || '');
                               setShowPassword(false);
@@ -1091,14 +1081,13 @@ export default function App() {
                               setCredSets(updated);
                               if (updated.length === 0) {
                                 setActiveCredSetId('');
-                                // (#39: Do not auto-pause; warn instead of deciding)
                                 triggerToast('No credentials stored. Add credentials to enable auto-login.', 'warn');
                               } else {
                                 if (isActive) {
-                                  setActiveCredSetId(updated[0].id);
+                                  setActiveCredSetId(updated[0].username);
                                   api.setActiveCred(updated[0].username);
                                 }
-                                triggerToast(`Deleted credential set: ${cred.name}`, 'info');
+                                triggerToast(`Deleted credentials: ${cred.username}`, 'info');
                               }
                             });
                           }}
@@ -1139,23 +1128,12 @@ export default function App() {
             <div className="space-y-3">
               <div>
                 <h3 className="text-sm font-bold text-white">Edit Credentials</h3>
-                <p className="text-[11px] text-[#7A828A]">Update username, password, or profile name</p>
+                <p className="text-[11px] text-[#7A828A]">Update username or password</p>
               </div>
 
               <div className="space-y-2.5 pt-1">
                 <div>
-                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">1. Credentials Name</label>
-                  <input
-                    type="text"
-                    value={formCredName}
-                    onChange={(e) => setFormCredName(e.target.value)}
-                    placeholder="Profile name"
-                    className="w-full bg-[#0E1012] border border-[#2B2D31] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#00A8FF]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">2. Username (SRN)</label>
+                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">1. Username (SRN)</label>
                   <input
                     type="text"
                     value={formUsername}
@@ -1166,7 +1144,7 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">3. Password</label>
+                  <label className="block text-[11px] font-medium text-[#949BA4] mb-1">2. Password</label>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
@@ -1196,31 +1174,33 @@ export default function App() {
               <button
                 onClick={() =>
                   handleAntiSpam(async () => {
-                    if (!formUsername.trim()) {
+                    const trimmedUser = formUsername.trim();
+                    if (!trimmedUser) {
                       triggerToast('Username (SRN) required', 'error');
                       return;
                     }
-                    const updatedName = formCredName.trim() || 'default';
                     try {
-                      await api.saveCreds(updatedName, formUsername.trim(), formPassword, activeCredSetId === editingCredId);
+                      const wasActive = activeCredSetId === editingCredId;
+                      await api.saveCreds(trimmedUser, formPassword, wasActive);
+                      if (editingCredId && editingCredId !== trimmedUser) {
+                        await api.deleteCreds(editingCredId);
+                      }
                       setCredSets(
                         credSets.map((c) =>
                           c.id === editingCredId
                             ? {
-                                ...c,
-                                id: updatedName,
-                                name: updatedName,
-                                username: formUsername.trim(),
+                                id: trimmedUser,
+                                username: trimmedUser,
                                 password: formPassword,
                               }
                             : c
                         )
                       );
-                      if (activeCredSetId === editingCredId) {
-                        setActiveCredSetId(updatedName);
+                      if (wasActive) {
+                        setActiveCredSetId(trimmedUser);
                       }
                       setActiveModal('manage_cred');
-                      triggerToast(`Updated credentials: ${updatedName}`, 'success');
+                      triggerToast(`Updated credentials: ${trimmedUser}`, 'success');
                     } catch (err) {
                       triggerToast('Failed to update credentials', 'error');
                     }

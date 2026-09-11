@@ -2,7 +2,6 @@ export type LEDState = 'green' | 'red' | 'yellow' | 'orange';
 
 export interface CredSet {
   id: string;
-  name: string;
   username: string;
   password?: string;
 }

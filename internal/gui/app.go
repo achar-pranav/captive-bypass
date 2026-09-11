@@ -27,7 +27,6 @@ type App struct {
 
 // CredProfileInfo represents a credential profile summary without exposing secrets.
 type CredProfileInfo struct {
-	Name     string `json:"name"`
 	Username string `json:"username"`
 	IsActive bool   `json:"isActive"`
 }
@@ -129,7 +128,6 @@ func (a *App) GetState() AppState {
 	profiles := make([]CredProfileInfo, 0, len(a.cfg.CredSets))
 	for _, cs := range a.cfg.CredSets {
 		profiles = append(profiles, CredProfileInfo{
-			Name:     cs.Name,
 			Username: cs.Username,
 			IsActive: cs.Username == a.cfg.ActiveSet,
 		})

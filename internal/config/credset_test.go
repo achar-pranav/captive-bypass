@@ -13,7 +13,7 @@ func testFP(t *testing.T) []byte {
 
 func TestCredSetRoundtrip(t *testing.T) {
 	c := Default()
-	if err := c.SetCredSet(testFP(t), "work", "PES123", "secret"); err != nil {
+	if err := c.SetCredSet(testFP(t), "PES123", "secret"); err != nil {
 		t.Fatal(err)
 	}
 	if c.ActiveSet != "work" {
@@ -31,10 +31,10 @@ func TestCredSetRoundtrip(t *testing.T) {
 func TestCredSetUpsertAndSwitch(t *testing.T) {
 	c := Default()
 	fp := testFP(t)
-	if err := c.SetCredSet(fp, "a", "u1", "p1"); err != nil {
+	if err := c.SetCredSet(fp, "u1", "p1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.SetCredSet(fp, "b", "u2", "p2"); err != nil {
+	if err := c.SetCredSet(fp, "u2", "p2"); err != nil {
 		t.Fatal(err)
 	}
 	if len(c.CredSets) != 2 {
@@ -47,7 +47,7 @@ func TestCredSetUpsertAndSwitch(t *testing.T) {
 	if user != "u2" || pass != "p2" {
 		t.Fatalf("active resolved to %q/%q", user, pass)
 	}
-	if err := c.SetCredSet(fp, "b", "u3", "p3"); err != nil {
+	if err := c.SetCredSet(fp, "u3", "p3"); err != nil {
 		t.Fatal(err)
 	}
 	if got := len(c.CredSets); got != 2 {
@@ -62,7 +62,7 @@ func TestCredSetUpsertAndSwitch(t *testing.T) {
 func TestDeleteCredSetClearsActive(t *testing.T) {
 	c := Default()
 	fp := testFP(t)
-	c.SetCredSet(fp, "only", "u", "p")
+	c.SetCredSet(fp, "u", "p")
 	if err := c.DeleteCredSet("only"); err != nil {
 		t.Fatal(err)
 	}

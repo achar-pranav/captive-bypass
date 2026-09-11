@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const DefaultBaseURL = "https://rr.pes.edu:8090/httpclient.html"
+const DefaultBaseURL = "https://rr.pes.edu:8090"
 
 type Client struct {
 	baseURL string
